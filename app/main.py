@@ -2,22 +2,56 @@ import os
 import hmac
 import hashlib
 import base64
+import secrets
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import httpx
-from fastapi import FastAPI, Request, Header, HTTPException
+from fastapi import FastAPI, Request, Header, HTTPException, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 app = FastAPI()
 
 # =========================================================
 # メモリ保存（再起動で消える）
-# 例: [{"userId": "...", "userName": "...", "pictureUrl": "...", "event": "...", "time": "..."}]
 # =========================================================
 SEEN_USERS: List[Dict[str, Any]] = []
 
 LINE_PROFILE_API = "https://api.line.me/v2/bot/profile/{}"
+
+# =========================================================
+# Admin 認証（HTTP Basic）
+# =========================================================
+security = HTTPBasic()
+
+
+def require_admin(credentials: HTTPBasicCredentials = Depends(security)) -> None:
+    """
+    /admin 配下を守る簡易認証。
+    環境変数:
+      ADMIN_USERNAME
+      ADMIN_PASSWORD
+    """
+    admin_user = os.getenv("ADMIN_USERNAME", "")
+    admin_pass = os.getenv("ADMIN_PASSWORD", "")
+    if not admin_user or not admin_pass:
+        # 認証情報が未設定なら危険なので、明示的に拒否
+        raise HTTPException(
+            status_code=500,
+            detail="ADMIN_USERNAME / ADMIN_PASSWORD are not set",
+        )
+
+    is_user_ok = secrets.compare_digest(credentials.username, admin_user)
+    is_pass_ok = secrets.compare_digest(credentials.password, admin_pass)
+
+    if not (is_user_ok and is_pass_ok):
+        # Basic認証のダイアログを出すためにWWW-Authenticateを付ける
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized",
+            headers={"WWW-Authenticate": "Basic"},
+        )
 
 
 # =========================================================
@@ -30,7 +64,6 @@ def verify_line_signature(body: bytes, x_line_signature: Optional[str]) -> None:
     """
     secret = os.getenv("LINE_CHANNEL_SECRET", "")
     if not secret:
-        # ローカル確認用（本番は必ず設定）
         return
 
     if not x_line_signature:
@@ -47,10 +80,6 @@ def verify_line_signature(body: bytes, x_line_signature: Optional[str]) -> None:
 # LINEプロフィール取得
 # =========================================================
 async def fetch_line_profile(user_id: str) -> Dict[str, Any]:
-    """
-    Messaging APIのプロフィール取得 API を叩いて displayName 等を取得。
-    必要: LINE_CHANNEL_ACCESS_TOKEN
-    """
     token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
     if not token:
         return {}
@@ -77,7 +106,6 @@ async def fetch_line_profile(user_id: str) -> Dict[str, Any]:
 async def record_user(user_id: str, event_type: str) -> None:
     for u in SEEN_USERS:
         if u["userId"] == user_id:
-            # 既に居る場合は「最終イベント/時刻」だけ更新したいならここで更新してもOK
             u["event"] = event_type
             u["time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             return
@@ -105,13 +133,7 @@ def home():
       <h1>✅ LINE Task Server is running</h1>
       <ul>
         <li><a href="/health">/health</a></li>
-        <li><a href="/admin/users">/admin/users</a></li>
-      </ul>
-
-      <h3>Env checklist</h3>
-      <ul>
-        <li>LINE_CHANNEL_SECRET: Webhook署名検証（未設定なら検証スキップ）</li>
-        <li>LINE_CHANNEL_ACCESS_TOKEN: ユーザープロフィール取得に必須</li>
+        <li><a href="/admin/users">/admin/users</a>（要ログイン）</li>
       </ul>
     </body></html>
     """
@@ -123,7 +145,7 @@ def health():
 
 
 @app.get("/admin/users", response_class=HTMLResponse)
-def admin_users():
+def admin_users(_: None = Depends(require_admin)):
     rows = ""
     for u in SEEN_USERS:
         pic = u.get("pictureUrl")
@@ -163,12 +185,6 @@ def admin_users():
       <p style="margin-top:16px;">
         Webhook URL: <code>/line/webhook</code>
       </p>
-
-      <h3>Tips</h3>
-      <ul>
-        <li>ユーザー名を取るには <code>LINE_CHANNEL_ACCESS_TOKEN</code> が必要</li>
-        <li>ブロックされている/条件によってプロフィール取得が失敗することがあります（unknown表示）</li>
-      </ul>
     </body></html>
     """
 
@@ -198,7 +214,6 @@ async def line_webhook(
     return JSONResponse({"ok": True, "received": len(events)})
 
 
-# LINEの「Verify」用途に GET が飛んでくる場合に備えて（保険）
 @app.get("/line/webhook")
 def line_webhook_get():
     return {"ok": True}
