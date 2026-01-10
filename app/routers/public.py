@@ -14,4 +14,16 @@ async def home(request: Request):
 @router.get("/health")
 async def health(request: Request):
     pool = getattr(request.app.state, "db_pool", None)
-    return JSONResponse({"status": "ok", "db": "postgres" if pool else "missing"})
+    if not pool:
+        return JSONResponse({"status": "ng", "db_pool": "missing"})
+
+    async with pool.acquire() as conn:
+        users_count = await conn.fetchval("SELECT COUNT(*) FROM users")
+        tasks_count = await conn.fetchval("SELECT COUNT(*) FROM tasks")
+        return JSONResponse({
+            "status": "ok",
+            "db": "postgres",
+            "users_count": int(users_count),
+            "tasks_count": int(tasks_count),
+        })
+
