@@ -20,7 +20,7 @@ def verify_line_signature(body: bytes, x_line_signature: Optional[str]) -> None:
     LINEの署名検証。
     LINE_CHANNEL_SECRET が未設定ならローカル動作のため検証をスキップ。
     """
-    secret = os.getenv("LINE_CHANNEL_SECRET", "")
+    secret = os.getenv("LINE_CHANNEL_SECRET", "b26a0823995c105b2caf73c19b85f133")
     if not secret:
         # ローカル確認用（本番は必ず設定）
         return
@@ -97,6 +97,7 @@ async def line_webhook(
     verify_line_signature(body, x_line_signature)
 
     data = await request.json()
+    print("LINE webhook received:", data)
     events = data.get("events", [])
 
     # 受け取ったイベントを眺めたい時にログ出し（必要なら）
