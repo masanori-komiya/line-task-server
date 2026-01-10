@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block top_right %}
+  <a class="btn" href="/admin/users">Back</a>
+  <a class="btn" href="/">Home</a>
+{% endblock %}
+{% block content %}
+<div class="grid">
+  <div class="card">
+    <div class="card-h">User</div>
+    <div class="card-b">
+      <div style="display:flex; gap:12px; align-items:center;">
+        {% if user.picture_url %}
+          <img class="avatar" src="{{ user.picture_url }}" style="width:44px;height:44px;"/>
+        {% else %}
+          <span class="chip">?</span>
+        {% endif %}
+        <div>
+          <div style="font-weight:800;">{{ user.user_name or "unknown" }}</div>
+          <div class="muted mono" style="font-size:12px;">{{ user.user_id }}</div>
+        </div>
+      </div>
+      <div class="muted" style="margin-top:10px;">Last event: <span class="mono">{{ user.last_event or "" }}</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">Add Task</div>
+    <div class="card-b">
+      <form method="post" action="/admin/users/{{ user.user_id }}/tasks">
+        <div class="row">
+          <div>
+            <label>Task name</label>
+            <input name="name" placeholder="例：朝のバス予約" required />
+          </div>
+          <div class="row2">
+            <div>
+              <label>Script</label>
+              <select name="script_key" required>
+                {% for key, label in script_keys %}
+                  <option value="{{ key }}">{{ label }} ({{ key }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label>Time (HH:MM)</label>
+              <input name="schedule_value" placeholder="07:10" required />
+            </div>
+          </div>
+          <div>
+            <label>Notes</label>
+            <textarea name="notes" placeholder="任意：メモ"></textarea>
+          </div>
+          <div class="actions">
+            <button class="btn" type="submit">Create</button>
+          </div>
+          <div class="muted" style="font-size:12px;">
+            今は <span class="mono">daily_time</span>（毎日HH:MM）だけ対応。Runnerは後で付けられます。
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <div class="card-h">Tasks</div>
+  <div class="card-b tablewrap">
+    <table style="min-width:900px;">
+      <thead>
+        <tr>
+          <th>created</th>
+          <th>name</th>
+          <th>script_key</th>
+          <th>time</th>
+          <th>enabled</th>
+          <th>notes</th>
+          <th style="text-align:right;">actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if tasks|length == 0 %}
+          <tr><td colspan="7" class="muted">まだタスクがありません</td></tr>
+        {% endif %}
+        {% for t in tasks %}
+          <tr>
+            <td class="muted">{{ t.created_at.strftime("%Y-%m-%d %H:%M:%S") if t.created_at else "" }}</td>
+            <td><strong>{{ t.name }}</strong></td>
+            <td class="mono">{{ t.script_key }}</td>
+            <td class="mono">{{ t.schedule_value }}</td>
+            <td>
+              {% if t.enabled %}
+                <span class="chip">ON</span>
+              {% else %}
+                <span class="chip">OFF</span>
+              {% endif %}
+            </td>
+            <td class="muted">{{ t.notes or "" }}</td>
+            <td style="text-align:right;">
+              <form method="post" action="/admin/tasks/{{ t.task_id }}/toggle" style="display:inline;">
+                <button class="btn" type="submit">{% if t.enabled %}Disable{% else %}Enable{% endif %}</button>
+              </form>
+              <form method="post" action="/admin/tasks/{{ t.task_id }}/delete" style="display:inline;" onsubmit="return confirm('Delete this task?');">
+                <button class="btn" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

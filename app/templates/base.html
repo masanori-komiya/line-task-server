@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{{ title }}</title>
+  <style>
+    :root{
+      --bg:#0b1020; --text:rgba(255,255,255,0.92); --muted:rgba(255,255,255,0.70);
+      --card:rgba(255,255,255,0.06); --line:rgba(255,255,255,0.12);
+      --accent:#5eead4; --accent2:#60a5fa; --shadow:0 18px 60px rgba(0,0,0,0.45);
+      --radius:18px; --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP","Helvetica Neue",Arial,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol",sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; min-height:100vh; font-family:var(--sans); color:var(--text);
+      background:
+        radial-gradient(1200px 600px at 20% 10%, rgba(96,165,250,0.20), transparent 55%),
+        radial-gradient(1000px 550px at 80% 0%, rgba(94,234,212,0.16), transparent 55%),
+        linear-gradient(180deg,#070a14,#0b1020);
+    }
+    .wrap{max-width:1100px; margin:0 auto; padding:28px 18px 46px;}
+    .top{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px;}
+    .brand{display:flex; align-items:center; gap:12px;}
+    .logo{
+      width:42px; height:42px; border-radius:14px;
+      background:linear-gradient(135deg, rgba(94,234,212,0.95), rgba(96,165,250,0.95));
+      box-shadow:var(--shadow); display:grid; place-items:center; color:#06101a; font-weight:800;
+    }
+    a{color:inherit; text-decoration:none}
+    .btn{display:inline-flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px;
+      border:1px solid var(--line); background:rgba(255,255,255,0.06); color:var(--text); font-size:13px;}
+    .btn:hover{background:rgba(255,255,255,0.10)}
+    .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden;}
+    .card-h{padding:16px 18px; border-bottom:1px solid var(--line); background:linear-gradient(180deg, rgba(255,255,255,0.06), transparent);}
+    .card-b{padding:18px;}
+    .muted{color:var(--muted)}
+    .mono{font-family:var(--mono)}
+    table{width:100%; border-collapse:separate; border-spacing:0; min-width:860px}
+    thead th{ text-align:left; font-size:12px; color:var(--muted); font-weight:600; padding:12px 14px; border-bottom:1px solid var(--line); }
+    tbody td{ padding:12px 14px; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle; font-size:13px;}
+    tbody tr:hover{background:rgba(255,255,255,0.04)}
+    .tablewrap{overflow:auto}
+    .avatar{width:34px; height:34px; border-radius:50%; object-fit:cover; border:1px solid rgba(255,255,255,0.15)}
+    .chip{display:inline-flex; padding:6px 10px; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,0.06); font-size:12px; color:var(--muted)}
+    .grid{display:grid; grid-template-columns: 1fr; gap:14px}
+    @media (min-width: 900px){ .grid{grid-template-columns: 1.2fr 0.8fr} }
+    input, textarea, select{
+      width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--line);
+      background:rgba(255,255,255,0.05); color:var(--text); outline:none;
+    }
+    textarea{min-height:90px}
+    label{font-size:12px; color:var(--muted)}
+    .row{display:grid; gap:10px}
+    .row2{display:grid; gap:10px; grid-template-columns:1fr}
+    @media (min-width: 700px){ .row2{grid-template-columns: 1fr 1fr} }
+    .actions{display:flex; gap:10px; flex-wrap:wrap}
+    .right{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <div class="logo">LT</div>
+        <div>
+          <div style="font-weight:700">{{ title }}</div>
+          <div class="muted" style="font-size:12px">LINE Task Server</div>
+        </div>
+      </div>
+      <div class="right">
+        {% block top_right %}{% endblock %}
+      </div>
+    </div>
+
+    {% block content %}{% endblock %}
+
+    <div class="muted" style="margin-top:16px; font-size:12px;">
+      Webhook: <span class="mono">/line/webhook</span> ・ Health: <span class="mono">/health</span>
+    </div>
+  </div>
+</body>
+</html>
