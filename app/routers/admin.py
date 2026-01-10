@@ -1,5 +1,7 @@
 import re
+from datetime import datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -11,6 +13,8 @@ router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
 templates = Jinja2Templates(directory="app/templates")
 
 TIME_RE = re.compile(r"^\d{2}:\d{2}$")
+PLAN_TAGS = {"free", "paid"}
+JST = ZoneInfo("Asia/Tokyo")
 
 
 @router.get("/users", response_class=HTMLResponse)
@@ -42,7 +46,8 @@ async def admin_user_tasks(request: Request, user_id: str):
 
         tasks = await conn.fetch(
             """
-            SELECT task_id, user_id, name, script_key, schedule_type, schedule_value, timezone, enabled, notes, created_at, updated_at
+            SELECT task_id, user_id, name, script_key, schedule_type, schedule_value, timezone,
+                   enabled, notes, plan_tag, expires_at, created_at, updated_at
             FROM tasks
             WHERE user_id=$1
             ORDER BY created_at DESC
@@ -50,15 +55,9 @@ async def admin_user_tasks(request: Request, user_id: str):
             user_id,
         )
 
-    script_keys = [
-        ("bus_am", "バス予約（朝）"),
-        ("bus_pm", "バス予約（夕）"),
-        ("trash_notify", "ゴミ出し通知"),
-    ]
-
     return templates.TemplateResponse(
         "admin_tasks.html",
-        {"request": request, "title": "Tasks", "user": user, "tasks": tasks, "script_keys": script_keys},
+        {"request": request, "title": "Tasks", "user": user, "tasks": tasks},
     )
 
 
@@ -69,10 +68,25 @@ async def admin_create_task(
     name: str = Form(...),
     script_key: str = Form(...),
     schedule_value: str = Form(...),
+    plan_tag: str = Form("free"),
+    expires_date: Optional[str] = Form(None),  # YYYY-MM-DD
     notes: Optional[str] = Form(None),
 ):
-    if not TIME_RE.match(schedule_value):
+    if not TIME_RE.match(schedule_value.strip()):
         raise HTTPException(status_code=400, detail="schedule_value must be HH:MM")
+
+    plan_tag = (plan_tag or "free").strip()
+    if plan_tag not in PLAN_TAGS:
+        raise HTTPException(status_code=400, detail="plan_tag must be free or paid")
+
+    # expires_date が入ってたら、その日の 23:59:59 (JST) を expires_at にする
+    expires_at = None
+    if expires_date:
+        try:
+            d = datetime.fromisoformat(expires_date.strip())  # dateとして来るがfromisoformatでOK
+            expires_at = datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=JST)
+        except Exception:
+            raise HTTPException(status_code=400, detail="expires_date must be YYYY-MM-DD")
 
     pool = request.app.state.db_pool
 
@@ -83,14 +97,18 @@ async def admin_create_task(
 
         await conn.execute(
             """
-            INSERT INTO tasks (user_id, name, script_key, schedule_type, schedule_value, timezone, enabled, notes)
-            VALUES ($1, $2, $3, 'daily_time', $4, 'Asia/Tokyo', TRUE, $5)
+            INSERT INTO tasks (user_id, name, script_key, schedule_type, schedule_value, timezone,
+                               enabled, notes, plan_tag, expires_at)
+            VALUES ($1, $2, $3, 'daily_time', $4, 'Asia/Tokyo',
+                    TRUE, $5, $6, $7)
             """,
             user_id,
             name.strip(),
             script_key.strip(),
             schedule_value.strip(),
             (notes or "").strip() or None,
+            plan_tag,
+            expires_at,
         )
 
     return RedirectResponse(url=f"/admin/users/{user_id}/tasks", status_code=303)

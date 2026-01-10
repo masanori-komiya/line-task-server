@@ -15,9 +15,11 @@ async def create_pool() -> asyncpg.Pool:
 
 async def init_db(pool: asyncpg.Pool) -> None:
     """
-    最低限のテーブルを作る（簡易マイグレーション）
+    最低限のテーブル作成 + 追加カラム(簡易マイグレーション)
     """
-    sql = """
+    base_sql = """
+    CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
     CREATE TABLE IF NOT EXISTS users (
         user_id        TEXT PRIMARY KEY,
         user_name      TEXT,
@@ -61,6 +63,14 @@ async def init_db(pool: asyncpg.Pool) -> None:
     CREATE INDEX IF NOT EXISTS idx_task_runs_task_id ON task_runs(task_id);
     CREATE INDEX IF NOT EXISTS idx_task_runs_user_id ON task_runs(user_id);
     """
+
+    migrate_sql = """
+    -- 追加：有効期限と枠タグ（既存DBでも安全に追加）
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ NULL;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS plan_tag  TEXT NOT NULL DEFAULT 'free';
+    CREATE INDEX IF NOT EXISTS idx_tasks_plan_tag ON tasks(plan_tag);
+    """
+
     async with pool.acquire() as conn:
-        await conn.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto;")
-        await conn.execute(sql)
+        await conn.execute(base_sql)
+        await conn.execute(migrate_sql)
