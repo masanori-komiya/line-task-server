@@ -3,14 +3,14 @@ from fastapi import FastAPI
 from app.db import create_pool, init_db
 from app.routers.public import router as public_router
 from app.routers.admin import router as admin_router
-from app.routers.webhook import router as webhook_router
-
+from app.routers.webhook import router as webhook_router, legacy_router
 app = FastAPI()
 
 # ルーター
 app.include_router(public_router)
 app.include_router(admin_router)
 app.include_router(webhook_router)
+app.include_router(legacy_router)
 
 @app.on_event("startup")
 async def on_startup() -> None:
