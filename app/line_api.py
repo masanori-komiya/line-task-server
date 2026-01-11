@@ -70,10 +70,10 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
             "spacing": "sm",
             "margin": "sm",
             "contents": [
-                {"type": "text", "text": "タスク名", "size": "xxs", "weight": "bold", "flex": 6, "color": "#111111"},
-                {"type": "text", "text": "実行時間", "size": "xxs", "weight": "bold", "flex": 2, "color": "#111111"},
-                {"type": "text", "text": "期限",     "size": "xxs", "weight": "bold", "flex": 3, "color": "#111111"},
-                {"type": "text", "text": "プラン",   "size": "xxs", "weight": "bold", "flex": 2, "color": "#111111"},
+                {"type": "text", "text": "タスク名", "size": "xxs", "weight": "bold", "flex": 6, "align": "center","color": "#111111"},
+                {"type": "text", "text": "実行時間", "size": "xxs", "weight": "bold", "flex": 3, "align": "center","color": "#111111"},
+                {"type": "text", "text": "期限",     "size": "xxs", "weight": "bold", "flex": 3, "align": "center","color": "#111111"},
+                {"type": "text", "text": "プラン",   "size": "xxs", "weight": "bold", "flex": 2, "align": "center","color": "#111111"},
             ],
         },
         {"type": "separator", "margin": "sm"},
@@ -123,9 +123,9 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
                             "flex": 6,
                             "color": row_color,
                         },
-                        {"type": "text", "text": time, "size": "sm", "flex": 2, "align": "end", "color": row_color},
-                        {"type": "text", "text": expires_text, "size": "sm", "flex": 3, "align": "end", "color": row_color},
-                        {"type": "text", "text": plan, "size": "sm", "flex": 2, "align": "end", "weight": "bold", "color": plan_color},
+                        {"type": "text", "text": time, "size": "xxs", "flex": 3,"align": "center", "color": row_color},
+                        {"type": "text", "text": expires_text, "size": "xxs", "flex": 3, "align": "center", "color": row_color},
+                        {"type": "text", "text": plan, "size": "xss", "flex": 2, "align": "center", "weight": "bold", "color": plan_color},
                     ],
                 }
             )
