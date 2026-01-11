@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block top_right %}
   <a class="btn" href="/admin/users">Back</a>
+  <a class="btn" href="/admin/rerun-queue">Rerun Queue</a>
   <a class="btn" href="/">Home</a>
 {% endblock %}
 {% block content %}
@@ -30,17 +31,17 @@
         <div class="row">
           <div>
             <label>Task name</label>
-            <input name="name" placeholder="例：朝のバス予約" required />
+            <input name="name" required />
           </div>
 
           <div class="row2">
             <div>
-              <label>Script key（直接入力）</label>
-              <input name="script_key" placeholder="例：bus_am" required />
+              <label>Script name</label>
+              <input name="script_key"  required />
             </div>
             <div>
               <label>Time (HH:MM)</label>
-              <input name="schedule_value" placeholder="07:10" required />
+              <input name="schedule_value" placeholder="hh:mm" required />
             </div>
           </div>
 

@@ -16,6 +16,10 @@ TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 PLAN_TAGS = {"free", "paid"}
 JST = ZoneInfo("Asia/Tokyo")
 
+# rerun queue statuses
+RERUN_STATUSES = {"queued", "running", "done", "failed", "canceled"}
+
+
 @router.get("/users", response_class=HTMLResponse)
 async def admin_users(request: Request):
     pool = request.app.state.db_pool
@@ -29,6 +33,7 @@ async def admin_users(request: Request):
             """
         )
     return templates.TemplateResponse("admin_users.html", {"request": request, "title": "Users", "users": users})
+
 
 @router.get("/users/{user_id}/tasks", response_class=HTMLResponse)
 async def admin_user_tasks(request: Request, user_id: str):
@@ -52,7 +57,11 @@ async def admin_user_tasks(request: Request, user_id: str):
             user_id,
         )
 
-    return templates.TemplateResponse("admin_tasks.html", {"request": request, "title": "Tasks", "user": user, "tasks": tasks})
+    return templates.TemplateResponse(
+        "admin_tasks.html",
+        {"request": request, "title": "Tasks", "user": user, "tasks": tasks},
+    )
+
 
 @router.post("/users/{user_id}/tasks")
 async def admin_create_task(
@@ -104,6 +113,7 @@ async def admin_create_task(
 
     return RedirectResponse(url=f"/admin/users/{user_id}/tasks", status_code=303)
 
+
 @router.post("/tasks/{task_id}/toggle")
 async def admin_toggle_task(request: Request, task_id: str):
     pool = request.app.state.db_pool
@@ -116,6 +126,7 @@ async def admin_toggle_task(request: Request, task_id: str):
         user_id = row["user_id"]
     return RedirectResponse(url=f"/admin/users/{user_id}/tasks", status_code=303)
 
+
 @router.post("/tasks/{task_id}/delete")
 async def admin_delete_task(request: Request, task_id: str):
     pool = request.app.state.db_pool
@@ -126,3 +137,116 @@ async def admin_delete_task(request: Request, task_id: str):
         user_id = row["user_id"]
         await conn.execute("DELETE FROM tasks WHERE task_id=$1", task_id)
     return RedirectResponse(url=f"/admin/users/{user_id}/tasks", status_code=303)
+
+
+# ======================================================
+# Rerun queue (再実行リスト)
+# ======================================================
+
+@router.get("/rerun-queue", response_class=HTMLResponse)
+async def admin_rerun_queue(request: Request, status: str = "active"):
+    """
+    status:
+      - active: queued + running
+      - queued / running / done / failed / canceled
+      - all
+    """
+    status = (status or "active").strip().lower()
+    pool = request.app.state.db_pool
+
+    where_sql = ""
+    args = []
+    if status == "active":
+        where_sql = "WHERE q.status IN ('queued','running')"
+    elif status == "all":
+        where_sql = ""
+    elif status in RERUN_STATUSES:
+        where_sql = "WHERE q.status=$1"
+        args = [status]
+    else:
+        raise HTTPException(status_code=400, detail="invalid status")
+
+    sql = f"""
+    SELECT
+      q.request_id,
+      q.status,
+      (q.requested_at AT TIME ZONE 'Asia/Tokyo') AS requested_at_jst,
+      (q.locked_at    AT TIME ZONE 'Asia/Tokyo') AS locked_at_jst,
+      q.locked_by,
+      (q.started_at   AT TIME ZONE 'Asia/Tokyo') AS started_at_jst,
+      (q.finished_at  AT TIME ZONE 'Asia/Tokyo') AS finished_at_jst,
+      q.exit_code,
+      q.pc_name AS original_pc_name,
+      q.requested_by,
+
+      t.task_id,
+      t.name AS task_name,
+      t.script_key,
+      t.pc_name AS task_pc_name,
+
+      u.user_id,
+      u.user_name
+    FROM task_rerun_queue q
+    JOIN tasks t ON t.task_id = q.task_id
+    JOIN users u ON u.user_id = q.user_id
+    {where_sql}
+    ORDER BY
+      CASE q.status
+        WHEN 'running' THEN 0
+        WHEN 'queued'  THEN 1
+        ELSE 2
+      END,
+      q.requested_at DESC
+    LIMIT 400
+    """
+
+    async with pool.acquire() as conn:
+        items = await conn.fetch(sql, *args)
+        counts = await conn.fetchrow(
+            """
+            SELECT
+              COUNT(*) FILTER (WHERE status='queued')   AS queued,
+              COUNT(*) FILTER (WHERE status='running')  AS running,
+              COUNT(*) FILTER (WHERE status='done')     AS done,
+              COUNT(*) FILTER (WHERE status='failed')   AS failed,
+              COUNT(*) FILTER (WHERE status='canceled') AS canceled,
+              COUNT(*) AS all
+            FROM task_rerun_queue
+            """
+        )
+
+    return templates.TemplateResponse(
+        "admin_rerun_queue.html",
+        {"request": request, "title": "Rerun Queue", "items": items, "status": status, "counts": counts},
+    )
+
+
+@router.post("/rerun-queue/{request_id}/cancel")
+async def admin_cancel_rerun(request: Request, request_id: str):
+    """Cancel queued item (runningは不可)."""
+    pool = request.app.state.db_pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT status FROM task_rerun_queue WHERE request_id=$1", request_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="request not found")
+        if row["status"] != "queued":
+            raise HTTPException(status_code=400, detail="only queued can be canceled")
+        await conn.execute(
+            "UPDATE task_rerun_queue SET status='canceled', finished_at=NOW() WHERE request_id=$1",
+            request_id,
+        )
+    return RedirectResponse(url="/admin/rerun-queue?status=active", status_code=303)
+
+
+@router.post("/rerun-queue/{request_id}/delete")
+async def admin_delete_rerun(request: Request, request_id: str):
+    """Delete a rerun record (done/failed/canceled only)."""
+    pool = request.app.state.db_pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT status FROM task_rerun_queue WHERE request_id=$1", request_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="request not found")
+        if row["status"] in ("queued", "running"):
+            raise HTTPException(status_code=400, detail="active item cannot be deleted")
+        await conn.execute("DELETE FROM task_rerun_queue WHERE request_id=$1", request_id)
+    return RedirectResponse(url="/admin/rerun-queue?status=all", status_code=303)
