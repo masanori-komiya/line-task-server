@@ -9,7 +9,9 @@ from fastapi.responses import JSONResponse
 
 from app.line_api import build_tasks_flex, fetch_line_profile, reply_message
 
-router = APIRouter()
+# ✅ /line 配下にまとめる
+router = APIRouter(prefix="/line", tags=["line"])
+
 
 def verify_line_signature(body: bytes, x_line_signature: Optional[str]) -> None:
     secret = os.getenv("LINE_CHANNEL_SECRET", "").strip()
@@ -22,9 +24,11 @@ def verify_line_signature(body: bytes, x_line_signature: Optional[str]) -> None:
     if not hmac.compare_digest(expected, x_line_signature):
         raise HTTPException(status_code=400, detail="Invalid signature")
 
+
 def is_tasks_command(text: str) -> bool:
     t = (text or "").strip().lower()
     return t in {"タスク", "タスク一覧", "tasks", "task"}
+
 
 async def upsert_user(pool, user_id: str, event_type: str) -> Dict[str, Any]:
     profile = await fetch_line_profile(user_id)
@@ -45,9 +49,15 @@ async def upsert_user(pool, user_id: str, event_type: str) -> Dict[str, Any]:
               last_event=EXCLUDED.last_event,
               last_seen_at=NOW()
             """,
-            user_id, user_name, picture_url, status_message, event_type
+            user_id,
+            user_name,
+            picture_url,
+            status_message,
+            event_type,
         )
+
     return {"user_id": user_id, "user_name": user_name}
+
 
 async def fetch_tasks_for_user(pool, user_id: str):
     if not user_id:
@@ -67,7 +77,12 @@ async def fetch_tasks_for_user(pool, user_id: str):
     return [dict(r) for r in rows]
 
 
-async def line_webhook(request: Request, x_line_signature: Optional[str] = Header(default=None)):
+# ✅ これが無いと POST が登録されず 405 になる
+@router.post("/webhook")
+async def line_webhook(
+    request: Request,
+    x_line_signature: Optional[str] = Header(default=None),
+):
     body = await request.body()
     verify_line_signature(body, x_line_signature)
 
@@ -97,6 +112,7 @@ async def line_webhook(request: Request, x_line_signature: Optional[str] = Heade
 
     return JSONResponse({"ok": True, "received": len(events)})
 
-@router.get("/line/webhook")
+
+@router.get("/webhook")
 def line_webhook_get():
     return {"ok": True}
