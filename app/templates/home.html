@@ -4,34 +4,15 @@
   <a class="btn" href="/health">Health</a>
 {% endblock %}
 {% block content %}
-<div class="grid">
-  <div class="card">
-    <div class="card-h">
-      <span class="chip">Running</span>
-      <span class="chip">FastAPI</span>
-      <span class="chip">Postgres</span>
+<div class="card">
+  <div class="card-h">Running</div>
+  <div class="card-b">
+    <div>✅ LINE Task Server is running</div>
+    <div class="muted" style="margin-top:10px;">
+      Webhook: <span class="mono">/line/webhook</span>
     </div>
-    <div class="card-b">
-      <h2 style="margin:0 0 10px; font-size:18px;">✅ Server is running</h2>
-      <p class="muted" style="margin:0; line-height:1.7;">
-        LINE Webhookを受けてユーザーを保存し、ユーザーごとにタスクを管理できます。
-      </p>
-      <div class="actions" style="margin-top:14px;">
-        <a class="btn" href="/admin/users">Open Admin</a>
-        <a class="btn" href="/docs">OpenAPI Docs</a>
-        <a class="btn" href="/line/webhook">Webhook GET</a>
-      </div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-h">Checklist</div>
-    <div class="card-b">
-      <ul class="muted" style="margin:0; padding-left:18px; line-height:1.9;">
-        <li>Railway Variables: <span class="mono">LINE_CHANNEL_SECRET</span>, <span class="mono">LINE_CHANNEL_ACCESS_TOKEN</span></li>
-        <li>Railway Variables: <span class="mono">ADMIN_USERNAME</span>, <span class="mono">ADMIN_PASSWORD</span></li>
-        <li>Railway Postgres: <span class="mono">DATABASE_URL</span></li>
-        <li>Start Command: <span class="mono">uvicorn app.main:app --host 0.0.0.0 --port $PORT</span></li>
-      </ul>
+    <div class="muted" style="margin-top:6px;">
+      Rich Menu のボタンから「タスク」と送るとタスク一覧を Flex 返信します。
     </div>
   </div>
 </div>

@@ -1,50 +1,42 @@
 {% extends "base.html" %}
 {% block top_right %}
   <a class="btn" href="/">Home</a>
-  <a class="btn" href="/health">Health</a>
 {% endblock %}
 {% block content %}
 <div class="card">
   <div class="card-h">Users</div>
   <div class="card-b tablewrap">
-    <table>
+    <table style="min-width:980px;">
       <thead>
         <tr>
-          <th>time</th>
-          <th>event</th>
+          <th>last seen</th>
           <th>icon</th>
-          <th>name / status</th>
+          <th>name</th>
+          <th>event</th>
           <th>userId</th>
-          <th style="text-align:right;">actions</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
-        {% if users|length == 0 %}
-          <tr><td colspan="6" class="muted">まだ0件（Webhookが来ると増えます）</td></tr>
-        {% endif %}
-        {% for u in users %}
-          <tr>
-            <td class="muted">{{ u.last_seen_at.strftime("%Y-%m-%d %H:%M:%S") if u.last_seen_at else "" }}</td>
-            <td><span class="chip">{{ u.last_event or "unknown" }}</span></td>
-            <td>
-              {% if u.picture_url %}
-                <img class="avatar" src="{{ u.picture_url }}"/>
-              {% else %}
-                <span class="chip">?</span>
-              {% endif %}
-            </td>
-            <td>
-              <div style="display:flex;flex-direction:column;gap:2px;">
-                <strong>{{ u.user_name or "unknown" }}</strong>
-                <span class="muted mono">{{ u.status_message or "" }}</span>
-              </div>
-            </td>
-            <td class="mono">{{ u.user_id }}</td>
-            <td style="text-align:right;">
-              <a class="btn" href="/admin/users/{{ u.user_id }}/tasks">Tasks</a>
-            </td>
-          </tr>
-        {% endfor %}
+      {% if users|length == 0 %}
+        <tr><td colspan="6" class="muted">まだ0件（Webhookを一度当ててください）</td></tr>
+      {% endif %}
+      {% for u in users %}
+        <tr>
+          <td class="muted">{{ u.last_seen_at.strftime("%Y-%m-%d %H:%M:%S") if u.last_seen_at else "" }}</td>
+          <td>
+            {% if u.picture_url %}
+              <img class="avatar" src="{{ u.picture_url }}" style="width:36px;height:36px;">
+            {% else %}
+              <span class="chip">?</span>
+            {% endif %}
+          </td>
+          <td><strong>{{ u.user_name or "unknown" }}</strong></td>
+          <td class="muted">{{ u.last_event or "" }}</td>
+          <td class="mono muted" style="font-size:12px;">{{ u.user_id }}</td>
+          <td><a class="btn" href="/admin/users/{{ u.user_id }}/tasks">Tasks</a></td>
+        </tr>
+      {% endfor %}
       </tbody>
     </table>
   </div>

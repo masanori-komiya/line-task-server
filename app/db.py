@@ -1,22 +1,16 @@
 import os
 import asyncpg
 
-
 def get_database_url() -> str:
-    url = os.getenv("DATABASE_URL", "")
+    url = os.getenv("DATABASE_URL", "").strip()
     if not url:
         raise RuntimeError("DATABASE_URL is not set")
     return url
 
-
 async def create_pool() -> asyncpg.Pool:
     return await asyncpg.create_pool(dsn=get_database_url(), min_size=1, max_size=5)
 
-
 async def init_db(pool: asyncpg.Pool) -> None:
-    """
-    最低限のテーブル作成 + 追加カラム(簡易マイグレーション)
-    """
     base_sql = """
     CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -36,16 +30,19 @@ async def init_db(pool: asyncpg.Pool) -> None:
         name           TEXT NOT NULL,
         script_key     TEXT NOT NULL,
         schedule_type  TEXT NOT NULL DEFAULT 'daily_time',
-        schedule_value TEXT NOT NULL, -- "HH:MM"
+        schedule_value TEXT NOT NULL,
         timezone       TEXT NOT NULL DEFAULT 'Asia/Tokyo',
         enabled        BOOLEAN NOT NULL DEFAULT TRUE,
         notes          TEXT,
+        plan_tag       TEXT NOT NULL DEFAULT 'free',
+        expires_at     TIMESTAMPTZ NULL,
         created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_enabled ON tasks(enabled);
+    CREATE INDEX IF NOT EXISTS idx_tasks_plan_tag ON tasks(plan_tag);
 
     CREATE TABLE IF NOT EXISTS task_runs (
         run_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -54,7 +51,7 @@ async def init_db(pool: asyncpg.Pool) -> None:
         runner_id   TEXT,
         started_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         finished_at TIMESTAMPTZ,
-        status      TEXT NOT NULL, -- success / failed / skipped
+        status      TEXT NOT NULL,
         exit_code   INT,
         stdout      TEXT,
         stderr      TEXT
@@ -63,14 +60,5 @@ async def init_db(pool: asyncpg.Pool) -> None:
     CREATE INDEX IF NOT EXISTS idx_task_runs_task_id ON task_runs(task_id);
     CREATE INDEX IF NOT EXISTS idx_task_runs_user_id ON task_runs(user_id);
     """
-
-    migrate_sql = """
-    -- 追加：有効期限と枠タグ（既存DBでも安全に追加）
-    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ NULL;
-    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS plan_tag  TEXT NOT NULL DEFAULT 'free';
-    CREATE INDEX IF NOT EXISTS idx_tasks_plan_tag ON tasks(plan_tag);
-    """
-
     async with pool.acquire() as conn:
         await conn.execute(base_sql)
-        await conn.execute(migrate_sql)

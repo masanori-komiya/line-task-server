@@ -37,9 +37,6 @@
             <div>
               <label>Script key（直接入力）</label>
               <input name="script_key" placeholder="例：bus_am" required />
-              <div class="muted" style="font-size:12px; margin-top:6px;">
-                ローカルRunner側で解釈するキー（ファイル名やコマンド名の識別子）
-              </div>
             </div>
             <div>
               <label>Time (HH:MM)</label>
@@ -58,9 +55,6 @@
             <div>
               <label>Expires (optional)</label>
               <input name="expires_date" type="date" />
-              <div class="muted" style="font-size:12px; margin-top:6px;">
-                入れた場合、その日の 23:59:59(JST) で期限切れ扱いにできます
-              </div>
             </div>
           </div>
 
@@ -71,10 +65,6 @@
 
           <div class="actions">
             <button class="btn" type="submit">Create</button>
-          </div>
-
-          <div class="muted" style="font-size:12px;">
-            今は <span class="mono">daily_time</span>（毎日HH:MM）だけ対応。Runnerで plan_tag / expires を見て実行制御できます。
           </div>
         </div>
       </form>
@@ -107,7 +97,7 @@
           <tr>
             <td class="muted">{{ t.created_at.strftime("%Y-%m-%d %H:%M:%S") if t.created_at else "" }}</td>
             <td><strong>{{ t.name }}</strong></td>
-            <td class="mono">{{ t.script_key }}</td>
+            <td class="mono muted">{{ t.script_key }}</td>
             <td class="mono">{{ t.schedule_value }}</td>
             <td><span class="chip">{{ t.plan_tag }}</span></td>
             <td class="mono muted">
