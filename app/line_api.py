@@ -123,9 +123,9 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
                             "flex": 6,
                             "color": row_color,
                         },
-                        {"type": "text", "text": time, "size": "xxs", "flex": 3,"align": "center", "color": row_color},
+                        {"type": "text", "text": time,         "size": "xxs", "flex": 3, "align": "center", "color": row_color},
                         {"type": "text", "text": expires_text, "size": "xxs", "flex": 3, "align": "center", "color": row_color},
-                        {"type": "text", "text": plan, "size": "xss", "flex": 2, "align": "center", "weight": "bold", "color": plan_color},
+                        {"type": "text", "text": plan,         "size": "xxs", "flex": 2, "align": "center", "color": plan_color},
                     ],
                 }
             )
