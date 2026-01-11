@@ -1,14 +1,17 @@
 import os
 import asyncpg
 
+
 def get_database_url() -> str:
     url = os.getenv("DATABASE_URL", "").strip()
     if not url:
         raise RuntimeError("DATABASE_URL is not set")
     return url
 
+
 async def create_pool() -> asyncpg.Pool:
     return await asyncpg.create_pool(dsn=get_database_url(), min_size=1, max_size=5)
+
 
 async def init_db(pool: asyncpg.Pool) -> None:
     base_sql = """
@@ -36,13 +39,18 @@ async def init_db(pool: asyncpg.Pool) -> None:
         notes          TEXT,
         plan_tag       TEXT NOT NULL DEFAULT 'free',
         expires_at     TIMESTAMPTZ NULL,
+        pc_name        TEXT NOT NULL DEFAULT 'default',
         created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);
-    CREATE INDEX IF NOT EXISTS idx_tasks_enabled ON tasks(enabled);
+    ALTER TABLE tasks
+        ADD COLUMN IF NOT EXISTS pc_name TEXT NOT NULL DEFAULT 'default';
+
+    CREATE INDEX IF NOT EXISTS idx_tasks_user_id  ON tasks(user_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_enabled  ON tasks(enabled);
     CREATE INDEX IF NOT EXISTS idx_tasks_plan_tag ON tasks(plan_tag);
+    CREATE INDEX IF NOT EXISTS idx_tasks_pc_name  ON tasks(pc_name);
 
     CREATE TABLE IF NOT EXISTS task_runs (
         run_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -59,6 +67,38 @@ async def init_db(pool: asyncpg.Pool) -> None:
 
     CREATE INDEX IF NOT EXISTS idx_task_runs_task_id ON task_runs(task_id);
     CREATE INDEX IF NOT EXISTS idx_task_runs_user_id ON task_runs(user_id);
+
+    -- ======================================================
+    -- ★ 再実行キュー
+    -- ======================================================
+    CREATE TABLE IF NOT EXISTS task_rerun_queue (
+        request_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        task_id      UUID NOT NULL REFERENCES tasks(task_id) ON DELETE CASCADE,
+        user_id      TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+        pc_name      TEXT NOT NULL,                 -- tasks.pc_name のスナップショット（ログ用）
+        requested_by TEXT,
+        requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        status       TEXT NOT NULL DEFAULT 'queued', -- queued / running / done / failed / canceled
+        locked_at    TIMESTAMPTZ,
+        locked_by    TEXT,
+        started_at   TIMESTAMPTZ,
+        finished_at  TIMESTAMPTZ,
+        exit_code    INT,
+        stdout       TEXT,
+        stderr       TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_rerun_queue_pc_status
+    ON task_rerun_queue(pc_name, status, requested_at);
+
+    CREATE INDEX IF NOT EXISTS idx_rerun_queue_task_id
+    ON task_rerun_queue(task_id);
+
+    -- ★ queued/running の間は同じ task_id を重複させない（重要）
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_rerun_active_task
+    ON task_rerun_queue(task_id)
+    WHERE status IN ('queued', 'running');
     """
+
     async with pool.acquire() as conn:
         await conn.execute(base_sql)
