@@ -44,62 +44,124 @@ async def reply_message(reply_token: str, messages: List[Dict[str, Any]]) -> boo
 
 def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
-    表示内容：タスク名 / 実行時間 / 期限 / free or paid（この順番）
+    1つのBubbleでテーブル風表示
+    カラム：タスク名 / 実行時間 / 有効期限 / プラン
     """
-    header_title = f"{user_name} のタスク" if user_name else "タスク一覧"
 
+    title = f"{user_name} のタスク" if user_name else "タスク一覧"
+
+    # ---------- ヘッダー ----------
+    contents: List[Dict[str, Any]] = [
+        {
+            "type": "text",
+            "text": title,
+            "weight": "bold",
+            "size": "lg",
+            "wrap": True,
+        },
+        {
+            "type": "box",
+            "layout": "horizontal",
+            "margin": "md",
+            "contents": [
+                {"type": "text", "text": "タスク名", "size": "xs", "weight": "bold", "flex": 4},
+                {"type": "text", "text": "時間", "size": "xs", "weight": "bold", "flex": 2},
+                {"type": "text", "text": "期限", "size": "xs", "weight": "bold", "flex": 3},
+                {"type": "text", "text": "プラン", "size": "xs", "weight": "bold", "flex": 2},
+            ],
+        },
+        {"type": "separator", "margin": "sm"},
+    ]
+
+    # ---------- データなし ----------
     if not tasks:
-        return {
-            "type": "flex",
-            "altText": "タスク一覧（0件）",
-            "contents": {
-                "type": "bubble",
-                "body": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "spacing": "md",
-                    "contents": [
-                        {"type": "text", "text": header_title, "weight": "bold", "size": "lg"},
-                        {"type": "text", "text": "タスクがまだありません。", "wrap": True, "color": "#666666"},
-                    ],
-                },
-            },
-        }
-
-    bubbles: List[Dict[str, Any]] = []
-    for t in tasks[:10]:
-        name = t.get("name") or "(no name)"
-        time = t.get("schedule_value") or "-"
-        plan = (t.get("plan_tag") or "free").lower()
-
-        expires = t.get("expires_at")
-        if expires:
-            try:
-                expires_text = expires.strftime("%Y-%m-%d")
-            except Exception:
-                expires_text = str(expires)
-        else:
-            expires_text = "-"
-
-        bubbles.append(
+        contents.append(
             {
-                "type": "bubble",
-                "body": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "spacing": "sm",
-                    "contents": [
-                        {"type": "text", "text": name, "weight": "bold", "size": "md", "wrap": True},
-                        {"type": "text", "text": f"🕒 実行時間: {time}", "size": "sm", "color": "#444444"},
-                        {"type": "text", "text": f"⏳ 期限: {expires_text}", "size": "sm", "color": "#444444"},
-                        {"type": "text", "text": f"🏷 {plan}", "size": "sm", "color": "#444444"},
-                    ],
-                },
+                "type": "text",
+                "text": "タスクがまだありません。",
+                "size": "sm",
+                "color": "#666666",
+                "margin": "md",
             }
         )
+    else:
+        # ---------- データ行 ----------
+        for t in tasks[:20]:
+            name = t.get("name") or "-"
+            time = t.get("schedule_value") or "-"
+            plan = (t.get("plan_tag") or "free").lower()
+
+            expires = t.get("expires_at")
+            if expires:
+                try:
+                    expires_text = expires.strftime("%Y-%m-%d")
+                except Exception:
+                    expires_text = str(expires)
+            else:
+                expires_text = "-"
+
+            contents.append(
+                {
+                    "type": "box",
+                    "layout": "horizontal",
+                    "spacing": "sm",
+                    "margin": "sm",
+                    "contents": [
+                        {
+                            "type": "text",
+                            "text": name,
+                            "size": "sm",
+                            "wrap": True,
+                            "flex": 4,
+                        },
+                        {
+                            "type": "text",
+                            "text": time,
+                            "size": "sm",
+                            "flex": 2,
+                        },
+                        {
+                            "type": "text",
+                            "text": expires_text,
+                            "size": "sm",
+                            "flex": 3,
+                        },
+                        {
+                            "type": "text",
+                            "text": plan,
+                            "size": "sm",
+                            "color": "#C94A4A" if plan == "paid" else "#2E7D32",
+                            "flex": 2,
+                        },
+                    ],
+                }
+            )
+
+        if len(tasks) > 20:
+            contents.extend(
+                [
+                    {"type": "separator", "margin": "md"},
+                    {
+                        "type": "text",
+                        "text": f"※ 表示は先頭20件まで（全 {len(tasks)} 件）",
+                        "size": "xs",
+                        "color": "#666666",
+                        "wrap": True,
+                        "margin": "sm",
+                    },
+                ]
+            )
 
     return {
         "type": "flex",
         "altText": f"タスク一覧（{len(tasks)}件）",
-        "contents": {"type": "carousel", "contents": bubbles},
+        "contents": {
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": contents,
+            },
+        },
     }
