@@ -136,7 +136,7 @@ async def line_webhook(
     payload = await request.json()
     events = payload.get("events") or []
 
-    pool: asyncpg.Pool = request.app.state.pool
+    pool: asyncpg.Pool = request.app.state.db_pool
 
     for ev in events:
         ev_type = ev.get("type")
