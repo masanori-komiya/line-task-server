@@ -42,58 +42,77 @@ async def reply_message(reply_token: str, messages: List[Dict[str, Any]]) -> boo
         print("LINE reply exception:", repr(e))
         return False
 
-def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    1つのBubbleでテーブル風表示（mobile最適化）
-    表示カラム：タスク名 / 実行時間 / 有効期限 / プラン
-    ※ tasks は enabledのみが来る前提（webhook側で絞る）
-    """
-    title = "実行中のタスク"
+from datetime import datetime, timezone
 
-    # ヘッダー行（列幅はmobile最適化：名前を広め、他は狭め）
-    header_row = {
-        "type": "box",
-        "layout": "horizontal",
-        "margin": "md",
-        "contents": [
-            {"type": "text", "text": "タスク名", "size": "xs", "weight": "bold", "flex": 6, "color": "#111111"},
-            {"type": "text", "text": "時間",     "size": "xs", "weight": "bold", "flex": 2, "align": "end", "color": "#111111"},
-            {"type": "text", "text": "期限",     "size": "xs", "weight": "bold", "flex": 3, "align": "end", "color": "#111111"},
-            {"type": "text", "text": "プラン",   "size": "xs", "weight": "bold", "flex": 2, "align": "end", "color": "#111111"},
-        ],
-    }
+def _is_expired(expires_at) -> bool:
+    if not expires_at:
+        return False
+    try:
+        # asyncpg は datetime を返すことが多い
+        if isinstance(expires_at, datetime):
+            # naiveならそのまま比較
+            return expires_at < datetime.now(expires_at.tzinfo) if expires_at.tzinfo else expires_at < datetime.now()
+        # 文字列っぽい場合
+        return str(expires_at) < datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return False
+
+
+def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
+    title = "実行中のタスク"
 
     contents: List[Dict[str, Any]] = [
         {"type": "text", "text": title, "weight": "bold", "size": "lg", "wrap": True},
         {"type": "text", "text": f"{len(tasks)} 件", "size": "sm", "color": "#666666"},
         {"type": "separator", "margin": "md"},
-        header_row,
+        {
+            "type": "box",
+            "layout": "horizontal",
+            "margin": "md",
+            "contents": [
+                {"type": "text", "text": "タスク名", "size": "xs", "weight": "bold", "flex": 6, "color": "#111111"},
+                {"type": "text", "text": "時間", "size": "xs", "weight": "bold", "flex": 2, "align": "end", "color": "#111111"},
+                {"type": "text", "text": "期限", "size": "xs", "weight": "bold", "flex": 3, "align": "end", "color": "#111111"},
+                {"type": "text", "text": "プラン", "size": "xs", "weight": "bold", "flex": 2, "align": "end", "color": "#111111"},
+            ],
+        },
         {"type": "separator", "margin": "sm"},
     ]
 
     if not tasks:
         contents.append(
-            {"type": "text", "text": "実行中のタスクはありません。", "size": "sm", "color": "#666666", "margin": "md", "wrap": True}
+            {"type": "text", "text": "タスクがありません。", "size": "sm", "color": "#666666", "margin": "md", "wrap": True}
         )
     else:
-        # データ行：最大20件
         for t in tasks[:20]:
             name = t.get("name") or "-"
             time = t.get("schedule_value") or "-"
             plan = (t.get("plan_tag") or "free").lower()
+            enabled = bool(t.get("enabled", True))
+            expires_at = t.get("expires_at")
 
-            expires = t.get("expires_at")
-            if expires:
+            expired = _is_expired(expires_at)
+
+            # 表示用期限（短め）
+            if expires_at:
                 try:
-                    expires_text = expires.strftime("%m/%d")  # mobile向けに短縮（例: 01/31）
+                    expires_text = expires_at.strftime("%m/%d") if isinstance(expires_at, datetime) else str(expires_at)[:10]
                 except Exception:
-                    expires_text = str(expires)[:5]
+                    expires_text = str(expires_at)[:10]
             else:
                 expires_text = "-"
 
-            # planをチップ風に見せる（テキストだけで）
-            plan_text = "paid" if plan == "paid" else "free"
-            plan_color = "#B42318" if plan == "paid" else "#1A7F37"  # paidは赤寄り、freeは緑寄り
+            # グレーアウト条件：disabled OR 期限切れ
+            is_gray = (not enabled) or expired
+            row_color = "#AAAAAA" if is_gray else "#222222"
+            plan_color = "#AAAAAA" if is_gray else ("#B42318" if plan == "paid" else "#1A7F37")
+
+            # 状態バッジ（小さく）
+            status_suffix = ""
+            if not enabled:
+                status_suffix = "（disabled）"
+            elif expired:
+                status_suffix = "（期限切れ）"
 
             contents.append(
                 {
@@ -104,37 +123,15 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
                     "contents": [
                         {
                             "type": "text",
-                            "text": name,
+                            "text": f"{name}{status_suffix}",
                             "size": "sm",
                             "wrap": True,
                             "flex": 6,
-                            "color": "#222222",
+                            "color": row_color,
                         },
-                        {
-                            "type": "text",
-                            "text": time,
-                            "size": "sm",
-                            "flex": 2,
-                            "align": "end",
-                            "color": "#222222",
-                        },
-                        {
-                            "type": "text",
-                            "text": expires_text,
-                            "size": "sm",
-                            "flex": 3,
-                            "align": "end",
-                            "color": "#222222",
-                        },
-                        {
-                            "type": "text",
-                            "text": plan_text,
-                            "size": "sm",
-                            "flex": 2,
-                            "align": "end",
-                            "color": plan_color,
-                            "weight": "bold",
-                        },
+                        {"type": "text", "text": time, "size": "sm", "flex": 2, "align": "end", "color": row_color},
+                        {"type": "text", "text": expires_text, "size": "sm", "flex": 3, "align": "end", "color": row_color},
+                        {"type": "text", "text": plan, "size": "sm", "flex": 2, "align": "end", "weight": "bold", "color": plan_color},
                     ],
                 }
             )
@@ -152,14 +149,7 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
         "altText": f"実行中のタスク（{len(tasks)}件）",
         "contents": {
             "type": "bubble",
-            "styles": {
-                "body": {"backgroundColor": "#FFFFFF"}  # 白背景で読みやすく
-            },
-            "body": {
-                "type": "box",
-                "layout": "vertical",
-                "spacing": "sm",
-                "contents": contents,
-            },
+            "styles": {"body": {"backgroundColor": "#FFFFFF"}},
+            "body": {"type": "box", "layout": "vertical", "spacing": "sm", "contents": contents},
         },
     }

@@ -50,18 +50,15 @@ async def upsert_user(pool, user_id: str, event_type: str) -> Dict[str, Any]:
     return {"user_id": user_id, "user_name": user_name}
 
 async def fetch_tasks_for_user(pool, user_id: str):
-    # user_id が空ならSQLを打たない（500防止）
     if not user_id:
         return []
 
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT name, schedule_value, plan_tag, expires_at
+            SELECT name, schedule_value, plan_tag, expires_at, enabled
             FROM tasks
             WHERE user_id = $1
-              AND enabled = TRUE
-              AND (expires_at IS NULL OR expires_at >= NOW())
             ORDER BY created_at DESC
             """,
             user_id,
