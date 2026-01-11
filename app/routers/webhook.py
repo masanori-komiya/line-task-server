@@ -55,7 +55,9 @@ async def fetch_tasks_for_user(pool, user_id: str):
             """
             SELECT name, schedule_value, plan_tag, expires_at
             FROM tasks
-            WHERE user_id=$1
+            WHERE user_id=
+              AND enabled=TRUE
+              AND (expires_at IS NULL OR expires_at >= NOW())
             ORDER BY created_at DESC
             """,
             user_id,

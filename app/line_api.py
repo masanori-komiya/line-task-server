@@ -44,48 +44,39 @@ async def reply_message(reply_token: str, messages: List[Dict[str, Any]]) -> boo
 
 def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
-    1つのBubbleでテーブル風表示
-    カラム：タスク名 / 実行時間 / 有効期限 / プラン
+    1つのBubbleでテーブル風表示（mobile最適化）
+    表示カラム：タスク名 / 実行時間 / 有効期限 / プラン
+    ※ tasks は enabledのみが来る前提（webhook側で絞る）
     """
+    title = "実行中のタスク"
 
-    title = f"{user_name} のタスク" if user_name else "タスク一覧"
+    # ヘッダー行（列幅はmobile最適化：名前を広め、他は狭め）
+    header_row = {
+        "type": "box",
+        "layout": "horizontal",
+        "margin": "md",
+        "contents": [
+            {"type": "text", "text": "タスク名", "size": "xs", "weight": "bold", "flex": 6, "color": "#111111"},
+            {"type": "text", "text": "時間",     "size": "xs", "weight": "bold", "flex": 2, "align": "end", "color": "#111111"},
+            {"type": "text", "text": "期限",     "size": "xs", "weight": "bold", "flex": 3, "align": "end", "color": "#111111"},
+            {"type": "text", "text": "プラン",   "size": "xs", "weight": "bold", "flex": 2, "align": "end", "color": "#111111"},
+        ],
+    }
 
-    # ---------- ヘッダー ----------
     contents: List[Dict[str, Any]] = [
-        {
-            "type": "text",
-            "text": title,
-            "weight": "bold",
-            "size": "lg",
-            "wrap": True,
-        },
-        {
-            "type": "box",
-            "layout": "horizontal",
-            "margin": "md",
-            "contents": [
-                {"type": "text", "text": "タスク名", "size": "xs", "weight": "bold", "flex": 4},
-                {"type": "text", "text": "時間", "size": "xs", "weight": "bold", "flex": 2},
-                {"type": "text", "text": "期限", "size": "xs", "weight": "bold", "flex": 3},
-                {"type": "text", "text": "プラン", "size": "xs", "weight": "bold", "flex": 2},
-            ],
-        },
+        {"type": "text", "text": title, "weight": "bold", "size": "lg", "wrap": True},
+        {"type": "text", "text": f"{len(tasks)} 件", "size": "sm", "color": "#666666"},
+        {"type": "separator", "margin": "md"},
+        header_row,
         {"type": "separator", "margin": "sm"},
     ]
 
-    # ---------- データなし ----------
     if not tasks:
         contents.append(
-            {
-                "type": "text",
-                "text": "タスクがまだありません。",
-                "size": "sm",
-                "color": "#666666",
-                "margin": "md",
-            }
+            {"type": "text", "text": "実行中のタスクはありません。", "size": "sm", "color": "#666666", "margin": "md", "wrap": True}
         )
     else:
-        # ---------- データ行 ----------
+        # データ行：最大20件
         for t in tasks[:20]:
             name = t.get("name") or "-"
             time = t.get("schedule_value") or "-"
@@ -94,11 +85,15 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
             expires = t.get("expires_at")
             if expires:
                 try:
-                    expires_text = expires.strftime("%Y-%m-%d")
+                    expires_text = expires.strftime("%m/%d")  # mobile向けに短縮（例: 01/31）
                 except Exception:
-                    expires_text = str(expires)
+                    expires_text = str(expires)[:5]
             else:
                 expires_text = "-"
+
+            # planをチップ風に見せる（テキストだけで）
+            plan_text = "paid" if plan == "paid" else "free"
+            plan_color = "#B42318" if plan == "paid" else "#1A7F37"  # paidは赤寄り、freeは緑寄り
 
             contents.append(
                 {
@@ -112,26 +107,33 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
                             "text": name,
                             "size": "sm",
                             "wrap": True,
-                            "flex": 4,
+                            "flex": 6,
+                            "color": "#222222",
                         },
                         {
                             "type": "text",
                             "text": time,
                             "size": "sm",
                             "flex": 2,
+                            "align": "end",
+                            "color": "#222222",
                         },
                         {
                             "type": "text",
                             "text": expires_text,
                             "size": "sm",
                             "flex": 3,
+                            "align": "end",
+                            "color": "#222222",
                         },
                         {
                             "type": "text",
-                            "text": plan,
+                            "text": plan_text,
                             "size": "sm",
-                            "color": "#C94A4A" if plan == "paid" else "#2E7D32",
                             "flex": 2,
+                            "align": "end",
+                            "color": plan_color,
+                            "weight": "bold",
                         },
                     ],
                 }
@@ -141,22 +143,18 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
             contents.extend(
                 [
                     {"type": "separator", "margin": "md"},
-                    {
-                        "type": "text",
-                        "text": f"※ 表示は先頭20件まで（全 {len(tasks)} 件）",
-                        "size": "xs",
-                        "color": "#666666",
-                        "wrap": True,
-                        "margin": "sm",
-                    },
+                    {"type": "text", "text": f"※ 表示は先頭20件まで（全 {len(tasks)} 件）", "size": "xs", "color": "#666666", "wrap": True, "margin": "sm"},
                 ]
             )
 
     return {
         "type": "flex",
-        "altText": f"タスク一覧（{len(tasks)}件）",
+        "altText": f"実行中のタスク（{len(tasks)}件）",
         "contents": {
             "type": "bubble",
+            "styles": {
+                "body": {"backgroundColor": "#FFFFFF"}  # 白背景で読みやすく
+            },
             "body": {
                 "type": "box",
                 "layout": "vertical",
