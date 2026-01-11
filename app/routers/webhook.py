@@ -50,21 +50,25 @@ async def upsert_user(pool, user_id: str, event_type: str) -> Dict[str, Any]:
     return {"user_id": user_id, "user_name": user_name}
 
 async def fetch_tasks_for_user(pool, user_id: str):
+    # user_id が空ならSQLを打たない（500防止）
+    if not user_id:
+        return []
+
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT name, schedule_value, plan_tag, expires_at
             FROM tasks
-            WHERE user_id=
-              AND enabled=TRUE
+            WHERE user_id = $1
+              AND enabled = TRUE
               AND (expires_at IS NULL OR expires_at >= NOW())
             ORDER BY created_at DESC
             """,
             user_id,
         )
+
     return [dict(r) for r in rows]
 
-@router.post("/line/webhook")
 async def line_webhook(request: Request, x_line_signature: Optional[str] = Header(default=None)):
     body = await request.body()
     verify_line_signature(body, x_line_signature)
