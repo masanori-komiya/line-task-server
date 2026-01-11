@@ -23,3 +23,11 @@ async def on_shutdown():
     pool = getattr(app.state, "db_pool", None)
     if pool:
         await pool.close()
+
+@app.get("/debug/routes")
+def debug_routes():
+    out = []
+    for r in app.routes:
+        methods = sorted(getattr(r, "methods", []) or [])
+        out.append({"path": getattr(r, "path", ""), "methods": methods, "name": getattr(r, "name", "")})
+    return out
