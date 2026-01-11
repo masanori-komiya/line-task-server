@@ -62,7 +62,6 @@ def _is_expired(expires_at) -> bool:
 def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     contents: List[Dict[str, Any]] = [
-        {"type": "text", "text": title, "weight": "bold", "size": "lg", "wrap": True},
         {"type": "text", "text": f"{len(tasks)} 件", "size": "sm", "color": "#666666"},
         {"type": "separator", "margin": "md"},
         {
