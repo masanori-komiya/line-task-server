@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from typing import Any, Dict, List
 
 import httpx
@@ -71,9 +72,9 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
             "margin": "md",
             "contents": [
                 {"type": "text", "text": "タスク名", "size": "xs", "weight": "bold", "flex": 6, "color": "#111111"},
-                {"type": "text", "text": "時間", "size": "xs", "weight": "bold", "flex": 2, "align": "end", "color": "#111111"},
-                {"type": "text", "text": "期限", "size": "xs", "weight": "bold", "flex": 3, "align": "end", "color": "#111111"},
-                {"type": "text", "text": "プラン", "size": "xs", "weight": "bold", "flex": 2, "align": "end", "color": "#111111"},
+                {"type": "text", "text": "時間",     "size": "xs", "weight": "bold", "flex": 2, "align": "end", "color": "#111111"},
+                {"type": "text", "text": "期限",     "size": "xs", "weight": "bold", "flex": 3, "align": "end", "color": "#111111"},
+                {"type": "text", "text": "プラン",   "size": "xs", "weight": "bold", "flex": 2, "align": "end", "color": "#111111"},
             ],
         },
         {"type": "separator", "margin": "sm"},
@@ -88,12 +89,8 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
             name = t.get("name") or "-"
             time = t.get("schedule_value") or "-"
             plan = (t.get("plan_tag") or "free").lower()
-            enabled = bool(t.get("enabled", True))
+
             expires_at = t.get("expires_at")
-
-            expired = _is_expired(expires_at)
-
-            # 表示用期限（短め）
             if expires_at:
                 try:
                     expires_text = expires_at.strftime("%m/%d") if isinstance(expires_at, datetime) else str(expires_at)[:10]
@@ -102,17 +99,15 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
             else:
                 expires_text = "-"
 
-            # グレーアウト条件：disabled OR 期限切れ
-            is_gray = (not enabled) or expired
+            enabled = bool(t.get("enabled", True))
+
+            # ✅ disabled のときだけグレーアウト
+            is_gray = not enabled
             row_color = "#AAAAAA" if is_gray else "#222222"
             plan_color = "#AAAAAA" if is_gray else ("#B42318" if plan == "paid" else "#1A7F37")
 
-            # 状態バッジ（小さく）
-            status_suffix = ""
-            if not enabled:
-                status_suffix = "（disabled）"
-            elif expired:
-                status_suffix = "（期限切れ）"
+            # 任意：disabledを小さく表示（いらなければ消してOK）
+            status_suffix = "（disabled）" if is_gray else ""
 
             contents.append(
                 {
