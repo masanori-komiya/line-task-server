@@ -71,9 +71,9 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
             "margin": "sm",
             "contents": [
                 {"type": "text", "text": "タスク名", "size": "xxs", "weight": "bold", "flex": 6, "color": "#111111"},
-                {"type": "text", "text": "実行時間", "size": "xxs", "weight": "bold", "flex": 2, "align": "end", "color": "#111111"},
-                {"type": "text", "text": "期限",     "size": "xxs", "weight": "bold", "flex": 3, "align": "end", "color": "#111111"},
-                {"type": "text", "text": "プラン",   "size": "xxs", "weight": "bold", "flex": 2, "align": "end", "color": "#111111"},
+                {"type": "text", "text": "実行時間", "size": "xxs", "weight": "bold", "flex": 2, "color": "#111111"},
+                {"type": "text", "text": "期限",     "size": "xxs", "weight": "bold", "flex": 3, "color": "#111111"},
+                {"type": "text", "text": "プラン",   "size": "xxs", "weight": "bold", "flex": 2, "color": "#111111"},
             ],
         },
         {"type": "separator", "margin": "sm"},
