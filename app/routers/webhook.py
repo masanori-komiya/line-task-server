@@ -170,15 +170,15 @@ async def line_webhook(
             result = await enqueue_rerun(pool, user_id, task_name, requested_by=display_name)
 
             if result["ok"]:
-                msg = f"OK！「{task_name}」を再実行キューに追加しました。\n（元の実行PC: {result['pc_name']}）"
+                msg = f"「{task_name}」を再実行キューに追加しました。再実行までしばらくお待ちください。"
             else:
                 reason = result.get("reason")
                 if reason == "not_found":
                     msg = f"「{task_name}」が見つかりませんでした。"
                 elif reason == "disabled":
-                    msg = f"「{task_name}」は disabled です（有効化してから再実行してね）。"
+                    msg = f"「{task_name}」は disabled です。"
                 elif reason == "already_pending":
-                    msg = f"「{task_name}」はすでに再実行待ち/実行中です。終わってからもう一度送ってね。"
+                    msg = f"「{task_name}」はすでに再実行待ち/実行中です。"
                 else:
                     msg = "再実行の追加に失敗しました。"
 
