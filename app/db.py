@@ -40,6 +40,8 @@ async def init_db(pool: asyncpg.Pool) -> None:
         plan_tag       TEXT NOT NULL DEFAULT 'free',
         expires_at     TIMESTAMPTZ NULL,
         pc_name        TEXT NOT NULL DEFAULT 'default',
+        run_time       INTERVAL NOT NULL DEFAULT INTERVAL '00:00:00',
+        is_pc_specific BOOLEAN NOT NULL DEFAULT FALSE,
         created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -47,10 +49,18 @@ async def init_db(pool: asyncpg.Pool) -> None:
     ALTER TABLE tasks
         ADD COLUMN IF NOT EXISTS pc_name TEXT NOT NULL DEFAULT 'default';
 
+    ALTER TABLE tasks
+        ADD COLUMN IF NOT EXISTS run_time INTERVAL NOT NULL DEFAULT INTERVAL '00:00:00';
+
+    ALTER TABLE tasks
+        ADD COLUMN IF NOT EXISTS is_pc_specific BOOLEAN NOT NULL DEFAULT FALSE;
+
     CREATE INDEX IF NOT EXISTS idx_tasks_user_id  ON tasks(user_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_enabled  ON tasks(enabled);
     CREATE INDEX IF NOT EXISTS idx_tasks_plan_tag ON tasks(plan_tag);
     CREATE INDEX IF NOT EXISTS idx_tasks_pc_name  ON tasks(pc_name);
+
+    CREATE INDEX IF NOT EXISTS idx_tasks_is_pc_specific ON tasks(is_pc_specific);
 
     CREATE TABLE IF NOT EXISTS task_runs (
         run_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),

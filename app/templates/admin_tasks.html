@@ -47,6 +47,28 @@
 
           <div class="row2">
             <div>
+              <label>pc_name</label>
+              <input name="pc_name" placeholder="default" />
+            </div>
+            <div>
+              <label>run_time (HH:MM:SS)</label>
+              <input name="run_time" placeholder="00:00:00" />
+            </div>
+          </div>
+
+          <div class="row2">
+            <div>
+              <label>is_pc_specific</label>
+              <select name="is_pc_specific" required>
+                <option value="false" selected>False</option>
+                <option value="true">True</option>
+              </select>
+            </div>
+            <div></div>
+          </div>
+
+          <div class="row2">
+            <div>
               <label>Plan tag</label>
               <select name="plan_tag" required>
                 <option value="free">free（無料枠）</option>
@@ -83,6 +105,9 @@
           <th>name</th>
           <th>script_key</th>
           <th>time</th>
+          <th>pc_name</th>
+          <th>run_time</th>
+          <th>pc?</th>
           <th>tag</th>
           <th>expires</th>
           <th>enabled</th>
@@ -92,7 +117,7 @@
       </thead>
       <tbody>
         {% if tasks|length == 0 %}
-          <tr><td colspan="9" class="muted">まだタスクがありません</td></tr>
+          <tr><td colspan="12" class="muted">まだタスクがありません</td></tr>
         {% endif %}
         {% for t in tasks %}
           <tr>
@@ -100,6 +125,20 @@
             <td><strong>{{ t.name }}</strong></td>
             <td class="mono muted">{{ t.script_key }}</td>
             <td class="mono">{{ t.schedule_value }}</td>
+            <td>
+              <form id="upd-{{ t.task_id }}" method="post" action="/admin/tasks/{{ t.task_id }}/update"></form>
+              <input name="pc_name" form="upd-{{ t.task_id }}" value="{{ t.pc_name }}" style="width:120px;" />
+            </td>
+            <td>
+              <input name="run_time" form="upd-{{ t.task_id }}" value="{{ t.run_time_hms or '00:00:00' }}" class="mono" style="width:100px;" />
+            </td>
+            <td>
+              <select name="is_pc_specific" form="upd-{{ t.task_id }}" style="width:92px;">
+                <option value="false" {% if not t.is_pc_specific %}selected{% endif %}>False</option>
+                <option value="true" {% if t.is_pc_specific %}selected{% endif %}>True</option>
+              </select>
+              <button class="btn" form="upd-{{ t.task_id }}" type="submit">Save</button>
+            </td>
             <td><span class="chip">{{ t.plan_tag }}</span></td>
             <td class="mono muted">
               {% if t.expires_at %}

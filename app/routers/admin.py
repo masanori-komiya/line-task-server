@@ -13,6 +13,7 @@ router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
 templates = Jinja2Templates(directory="app/templates")
 
 TIME_RE = re.compile(r"^\d{2}:\d{2}$")
+RUN_TIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
 PLAN_TAGS = {"free", "paid"}
 JST = ZoneInfo("Asia/Tokyo")
 
@@ -49,7 +50,11 @@ async def admin_user_tasks(request: Request, user_id: str):
         tasks = await conn.fetch(
             """
             SELECT task_id, user_id, name, script_key, schedule_type, schedule_value, timezone,
-                   enabled, notes, plan_tag, expires_at, created_at, updated_at
+                   enabled, notes, plan_tag, expires_at,
+                   pc_name,
+                   to_char(run_time, 'HH24:MI:SS') AS run_time_hms,
+                   is_pc_specific,
+                   created_at, updated_at
             FROM tasks
             WHERE user_id=$1
             ORDER BY created_at DESC
@@ -72,10 +77,21 @@ async def admin_create_task(
     schedule_value: str = Form(...),
     plan_tag: str = Form("free"),
     expires_date: Optional[str] = Form(None),  # YYYY-MM-DD
+    pc_name: str = Form("default"),
+    run_time: str = Form("00:00:00"),
+    is_pc_specific: str = Form("false"),
     notes: Optional[str] = Form(None),
 ):
     if not TIME_RE.match(schedule_value.strip()):
         raise HTTPException(status_code=400, detail="schedule_value must be HH:MM")
+
+    pc_name = (pc_name or "default").strip() or "default"
+
+    run_time = (run_time or "00:00:00").strip() or "00:00:00"
+    if not RUN_TIME_RE.match(run_time):
+        raise HTTPException(status_code=400, detail="run_time must be HH:MM:SS")
+
+    is_pc_specific_bool = (is_pc_specific or "false").strip().lower() in {"true", "1", "yes", "on"}
 
     plan_tag = (plan_tag or "free").strip()
     if plan_tag not in PLAN_TAGS:
@@ -98,9 +114,11 @@ async def admin_create_task(
         await conn.execute(
             """
             INSERT INTO tasks (user_id, name, script_key, schedule_type, schedule_value, timezone,
-                               enabled, notes, plan_tag, expires_at)
+                               enabled, notes, plan_tag, expires_at,
+                               pc_name, run_time, is_pc_specific)
             VALUES ($1, $2, $3, 'daily_time', $4, 'Asia/Tokyo',
-                    TRUE, $5, $6, $7)
+                    TRUE, $5, $6, $7,
+                    $8, $9::interval, $10)
             """,
             user_id,
             name.strip(),
@@ -109,6 +127,50 @@ async def admin_create_task(
             (notes or "").strip() or None,
             plan_tag,
             expires_at,
+            pc_name,
+            run_time,
+            is_pc_specific_bool,
+        )
+
+    return RedirectResponse(url=f"/admin/users/{user_id}/tasks", status_code=303)
+
+
+@router.post("/tasks/{task_id}/update")
+async def admin_update_task_meta(
+    request: Request,
+    task_id: str,
+    pc_name: str = Form("default"),
+    run_time: str = Form("00:00:00"),
+    is_pc_specific: str = Form("false"),
+):
+    pc_name = (pc_name or "default").strip() or "default"
+
+    run_time = (run_time or "00:00:00").strip() or "00:00:00"
+    if not RUN_TIME_RE.match(run_time):
+        raise HTTPException(status_code=400, detail="run_time must be HH:MM:SS")
+
+    is_pc_specific_bool = (is_pc_specific or "false").strip().lower() in {"true", "1", "yes", "on"}
+
+    pool = request.app.state.db_pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT user_id FROM tasks WHERE task_id=$1", task_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="Task not found")
+        user_id = row["user_id"]
+
+        await conn.execute(
+            """
+            UPDATE tasks
+            SET pc_name=$1,
+                run_time=$2::interval,
+                is_pc_specific=$3,
+                updated_at=NOW()
+            WHERE task_id=$4
+            """,
+            pc_name,
+            run_time,
+            is_pc_specific_bool,
+            task_id,
         )
 
     return RedirectResponse(url=f"/admin/users/{user_id}/tasks", status_code=303)
