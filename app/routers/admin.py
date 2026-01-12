@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -19,6 +19,15 @@ JST = ZoneInfo("Asia/Tokyo")
 
 # rerun queue statuses
 RERUN_STATUSES = {"queued", "running", "done", "failed", "canceled"}
+
+
+def parse_hhmmss_to_timedelta(run_time: str) -> timedelta:
+    """'HH:MM:SS' -> datetime.timedelta"""
+    rt = (run_time or "00:00:00").strip() or "00:00:00"
+    if not RUN_TIME_RE.match(rt):
+        raise HTTPException(status_code=400, detail="run_time must be HH:MM:SS")
+    h, m, s = map(int, rt.split(":"))
+    return timedelta(hours=h, minutes=m, seconds=s)
 
 
 @router.get("/users", response_class=HTMLResponse)
@@ -87,9 +96,8 @@ async def admin_create_task(
 
     pc_name = (pc_name or "default").strip() or "default"
 
-    run_time = (run_time or "00:00:00").strip() or "00:00:00"
-    if not RUN_TIME_RE.match(run_time):
-        raise HTTPException(status_code=400, detail="run_time must be HH:MM:SS")
+    # ✅ run_time: 'HH:MM:SS' -> timedelta
+    run_time_td = parse_hhmmss_to_timedelta(run_time)
 
     is_pc_specific_bool = (is_pc_specific or "false").strip().lower() in {"true", "1", "yes", "on"}
 
@@ -118,7 +126,7 @@ async def admin_create_task(
                                pc_name, run_time, is_pc_specific)
             VALUES ($1, $2, $3, 'daily_time', $4, 'Asia/Tokyo',
                     TRUE, $5, $6, $7,
-                    $8, $9::interval, $10)
+                    $8, $9, $10)
             """,
             user_id,
             name.strip(),
@@ -128,7 +136,7 @@ async def admin_create_task(
             plan_tag,
             expires_at,
             pc_name,
-            run_time,
+            run_time_td,           # ✅ timedelta を渡す
             is_pc_specific_bool,
         )
 
@@ -145,9 +153,8 @@ async def admin_update_task_meta(
 ):
     pc_name = (pc_name or "default").strip() or "default"
 
-    run_time = (run_time or "00:00:00").strip() or "00:00:00"
-    if not RUN_TIME_RE.match(run_time):
-        raise HTTPException(status_code=400, detail="run_time must be HH:MM:SS")
+    # ✅ run_time: 'HH:MM:SS' -> timedelta
+    run_time_td = parse_hhmmss_to_timedelta(run_time)
 
     is_pc_specific_bool = (is_pc_specific or "false").strip().lower() in {"true", "1", "yes", "on"}
 
@@ -162,13 +169,13 @@ async def admin_update_task_meta(
             """
             UPDATE tasks
             SET pc_name=$1,
-                run_time=$2::interval,
+                run_time=$2,
                 is_pc_specific=$3,
                 updated_at=NOW()
             WHERE task_id=$4
             """,
             pc_name,
-            run_time,
+            run_time_td,          # ✅ timedelta を渡す
             is_pc_specific_bool,
             task_id,
         )
