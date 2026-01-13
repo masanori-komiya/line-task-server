@@ -95,7 +95,7 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
 
             is_gray = not enabled
             row_color = "#AAAAAA" if is_gray else "#222222"
-            plan_color = "#AAAAAA" if is_gray else ("#B42318" if plan == "paid" else "#1A7F37")
+            plan_color = "#AAAAAA" if is_gray else ("#B42318" if plan == "paid" else ("#666666" if plan == "expired" else "#1A7F37"))
             status_suffix = "（disabled）" if is_gray else ""
 
             contents.append(

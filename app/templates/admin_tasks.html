@@ -128,6 +128,7 @@
               <select name="plan_tag" required>
                 <option value="free">free（無料枠）</option>
                 <option value="paid">paid（有料枠）</option>
+                <option value="expired">expired（期限切れ）</option>
               </select>
             </div>
             <div>
@@ -189,10 +190,18 @@
 
             <td class="mono muted">{{ t.script_key }}</td>
 
-            <td class="mono">{{ t.schedule_value }}</td>
-
             <td>
               <form id="upd-{{ t.task_id }}" method="post" action="/admin/tasks/{{ t.task_id }}/update"></form>
+              <input
+                name="schedule_value"
+                form="upd-{{ t.task_id }}"
+                value="{{ t.schedule_value }}"
+                class="mono"
+                style="width:80px;"
+              />
+            </td>
+
+            <td>
               <input
                 name="pc_name"
                 form="upd-{{ t.task_id }}"
@@ -217,8 +226,7 @@
                   <option value="false" {% if not t.is_pc_specific %}selected{% endif %}>False</option>
                   <option value="true" {% if t.is_pc_specific %}selected{% endif %}>True</option>
                 </select>
-                <button class="btn" form="upd-{{ t.task_id }}" type="submit">Save</button>
-              </div>
+                </div>
             </td>
 
             <td>
@@ -232,29 +240,42 @@
               </select>
             </td>
 
-            <td><span class="chip">{{ t.plan_tag }}</span></td>
-
-            <td class="mono muted">
-              {% if t.expires_at %}
-                {{ t.expires_at.strftime("%Y-%m-%d %H:%M:%S") }}
-              {% else %}
-                -
-              {% endif %}
+            <td>
+              <select name="plan_tag" form="upd-{{ t.task_id }}" style="width:86px;">
+                <option value="free" {% if t.plan_tag=="free" %}selected{% endif %}>free</option>
+                <option value="paid" {% if t.plan_tag=="paid" %}selected{% endif %}>paid</option>
+                <option value="expired" {% if t.plan_tag=="expired" %}selected{% endif %}>expired</option>
+              </select>
             </td>
 
             <td>
-              {% if t.enabled %}
-                <span class="chip">ON</span>
-              {% else %}
-                <span class="chip">OFF</span>
-              {% endif %}
+              <input
+                type="date"
+                name="expires_date"
+                form="upd-{{ t.task_id }}"
+                value="{{ t.expires_at.strftime('%Y-%m-%d') if t.expires_at else "" }}"
+                style="width:150px;"
+              />
             </td>
 
-            <td class="muted notes-cell" title="{{ t.notes or '' }}">
-              {{ t.notes or "" }}
+            <td>
+              <select name="enabled" form="upd-{{ t.task_id }}" style="width:86px;">
+                <option value="true" {% if t.enabled %}selected{% endif %}>ON</option>
+                <option value="false" {% if not t.enabled %}selected{% endif %}>OFF</option>
+              </select>
+            </td>
+
+            <td>
+              <textarea
+                name="notes"
+                form="upd-{{ t.task_id }}"
+                class="muted"
+                style="width:250px; height:34px;"
+              >{{ t.notes or "" }}</textarea>
             </td>
 
             <td style="text-align:right;">
+              <button class="btn" form="upd-{{ t.task_id }}" type="submit">Save</button>
               <form method="post" action="/admin/tasks/{{ t.task_id }}/toggle" style="display:inline;">
                 <button class="btn" type="submit">{% if t.enabled %}Disable{% else %}Enable{% endif %}</button>
               </form>

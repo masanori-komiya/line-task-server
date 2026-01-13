@@ -16,7 +16,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 RUN_TIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
-PLAN_TAGS = {"free", "paid"}
+PLAN_TAGS = {"free", "paid", "expired"}
 JST = ZoneInfo("Asia/Tokyo")
 
 # task_runs
@@ -360,7 +360,7 @@ async def admin_create_task(
 
     plan_tag = (plan_tag or "free").strip()
     if plan_tag not in PLAN_TAGS:
-        raise HTTPException(status_code=400, detail="plan_tag must be free or paid")
+        raise HTTPException(status_code=400, detail="plan_tag must be free, paid, or expired")
 
     expires_at = None
     if expires_date:
@@ -405,11 +405,21 @@ async def admin_create_task(
 async def admin_update_task_meta(
     request: Request,
     task_id: str,
+    schedule_value: str = Form("00:00"),
     pc_name: str = Form("default"),
     run_time: str = Form("00:00:00"),
     is_pc_specific: str = Form("false"),
     conversation_id: Optional[str] = Form(None),
+    plan_tag: str = Form("free"),
+    expires_date: Optional[str] = Form(None),  # YYYY-MM-DD
+    enabled: str = Form("true"),
+    notes: Optional[str] = Form(None),
 ):
+    # schedule_value
+    schedule_value = (schedule_value or "").strip()
+    if schedule_value and not TIME_RE.match(schedule_value):
+        raise HTTPException(status_code=400, detail="schedule_value must be HH:MM")
+
     pc_name = (pc_name or "default").strip() or "default"
 
     # ✅ run_time: 'HH:MM:SS' -> timedelta
@@ -417,6 +427,28 @@ async def admin_update_task_meta(
 
     is_pc_specific_bool = (is_pc_specific or "false").strip().lower() in {"true", "1", "yes", "on"}
     conversation_id = _normalize_uuid(conversation_id)
+
+    plan_tag = (plan_tag or "free").strip()
+    if plan_tag not in PLAN_TAGS:
+        raise HTTPException(status_code=400, detail="plan_tag must be free, paid, or expired")
+
+    # enabled
+    enabled_bool = (enabled or "true").strip().lower() in {"true", "1", "yes", "on"}
+
+    # expires_at
+    expires_at = None
+    if expires_date is not None:
+        v = (expires_date or "").strip()
+        if v:
+            try:
+                d = datetime.fromisoformat(v)
+                expires_at = datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=JST)
+            except Exception:
+                raise HTTPException(status_code=400, detail="expires_date must be YYYY-MM-DD")
+        else:
+            expires_at = None
+
+    notes_norm = (notes or "").strip() or None
 
     pool = request.app.state.db_pool
     async with pool.acquire() as conn:
@@ -428,17 +460,27 @@ async def admin_update_task_meta(
         await conn.execute(
             """
             UPDATE tasks
-            SET pc_name=$1,
-                run_time=$2,
-                is_pc_specific=$3,
-                conversation_id=$4,
+            SET schedule_value=$1,
+                pc_name=$2,
+                run_time=$3,
+                is_pc_specific=$4,
+                conversation_id=$5,
+                plan_tag=$6,
+                expires_at=$7,
+                enabled=$8,
+                notes=$9,
                 updated_at=NOW()
-            WHERE task_id=$5
+            WHERE task_id=$10
             """,
+            schedule_value or "00:00",
             pc_name,
-            run_time_td,  # ✅ timedelta
+            run_time_td,
             is_pc_specific_bool,
             conversation_id,
+            plan_tag,
+            expires_at,
+            enabled_bool,
+            notes_norm,
             task_id,
         )
 
