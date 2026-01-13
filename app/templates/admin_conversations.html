@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block top_right %}
+  <a class="btn" href="/admin/users">Users</a>
+  <a class="btn" href="/admin/rerun-queue">Rerun Queue</a>
+  <a class="btn" href="/">Home</a>
+{% endblock %}
+
+{% block content %}
+<style>
+  table.convs { min-width: 1100px; }
+  .dest { max-width: 560px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
+
+<div class="grid">
+  <div class="card">
+    <div class="card-h">Add Destination</div>
+    <div class="card-b">
+      <form method="post" action="/admin/conversations">
+        <div class="row">
+          <div>
+            <label>Provider</label>
+            <select name="provider" required>
+              <option value="lineworks" selected>lineworks (Incoming Webhook)</option>
+              <option value="line">line (manual)</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Destination</label>
+            <input name="destination" placeholder="lineworks: https://... (Webhook URL) / line: Uxxx or Cxxx or Rxxx" required />
+          </div>
+
+          <div>
+            <label>Display name (optional)</label>
+            <input name="display_name" placeholder="顧客名 / ルーム名 など" />
+          </div>
+
+          <div class="actions">
+            <button class="btn" type="submit">Save</button>
+          </div>
+
+          <div class="muted" style="font-size:12px; line-height:1.5;">
+            ・LINE はWebhook受信で自動追加されます（groupId / roomId / userId）。<br/>
+            ・LINE WORKS は顧客から受け取った Incoming Webhook URL をここに登録します。
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">Tips</div>
+    <div class="card-b">
+      <div class="muted" style="line-height:1.6;">
+        タスクの通知先は各タスクの「Notify to」で選べます。<br/>
+        何も選ばない場合は、従来どおりユーザー（user_id）宛てに送る運用にしてください。
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <div class="card-h">Destinations</div>
+  <div class="card-b tablewrap">
+    <table class="convs">
+      <thead>
+        <tr>
+          <th>provider</th>
+          <th>display</th>
+          <th>destination</th>
+          <th>last seen</th>
+          <th>created</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if conversations|length == 0 %}
+          <tr><td colspan="6" class="muted">まだ0件（LINEならWebhookでメッセージを一度送る / WORKSは手入力）</td></tr>
+        {% endif %}
+
+        {% for c in conversations %}
+          <tr>
+            <td><span class="chip">{{ c.provider }}</span></td>
+            <td>{{ c.display_name or "-" }}</td>
+            <td class="mono muted dest" title="{{ c.destination }}">{{ c.destination }}</td>
+            <td class="muted">{{ c.last_seen_at.strftime("%Y-%m-%d %H:%M:%S") if c.last_seen_at else "" }}</td>
+            <td class="muted">{{ c.created_at.strftime("%Y-%m-%d %H:%M:%S") if c.created_at else "" }}</td>
+            <td style="text-align:right;">
+              <form method="post" action="/admin/conversations/{{ c.conversation_id }}/delete" style="display:inline;" onsubmit="return confirm('Delete this destination?');">
+                <button class="btn" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -70,6 +70,33 @@ async def upsert_user_from_profile(conn: asyncpg.Connection, user_id: str, profi
     )
 
 
+def _extract_line_destination(ev: Dict[str, Any]) -> Optional[str]:
+    """LINEの宛先ID（U/C/R...）をイベントから取り出す"""
+    src = ev.get("source") or {}
+    t = src.get("type")
+    if t == "group":
+        return src.get("groupId")
+    if t == "room":
+        return src.get("roomId")
+    if t == "user":
+        return src.get("userId")
+    return None
+
+
+async def upsert_line_conversation(conn: asyncpg.Connection, ev: Dict[str, Any]) -> None:
+    """イベントを受け取ったタイミングで conversations を自動保存（UPSERT）"""
+    dest = _extract_line_destination(ev)
+    if not dest:
+        return
+    sql = """
+    INSERT INTO conversations (provider, destination, last_seen_at)
+    VALUES ('line', $1, NOW())
+    ON CONFLICT (provider, destination)
+    DO UPDATE SET last_seen_at=NOW()
+    """
+    await conn.execute(sql, dest)
+
+
 async def enqueue_rerun(pool: asyncpg.Pool, user_id: str, task_name: str, requested_by: Optional[str]) -> Dict[str, Any]:
     # ✅ 全角スペース/連続空白を正規化して比較（"通勤バス　乗車記録" 対策）
     sql_find = r"""
@@ -157,6 +184,7 @@ async def line_webhook(
         display_name = profile.get("displayName") or "user"
 
         async with pool.acquire() as conn:
+            await upsert_line_conversation(conn, ev)  # ✅ groupId/roomId などを自動保存
             await upsert_user_from_profile(conn, user_id, profile)
 
         if is_tasks_command(text):

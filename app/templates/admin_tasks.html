@@ -2,6 +2,7 @@
 
 {% block top_right %}
   <a class="btn" href="/admin/users">Back</a>
+  <a class="btn" href="/admin/conversations">Conversations</a>
   <a class="btn" href="/admin/rerun-queue">Rerun Queue</a>
   <a class="btn" href="/">Home</a>
 {% endblock %}
@@ -108,7 +109,15 @@
                 <option value="true">True</option>
               </select>
             </div>
-            <div></div>
+            <div>
+              <label>Notify to (optional)</label>
+              <select name="conversation_id">
+                <option value="">(default: user)</option>
+                {% for c in conversations %}
+                  <option value="{{ c.conversation_id }}">[{{ c.provider }}] {{ c.display_name or c.destination }}</option>
+                {% endfor %}
+              </select>
+            </div>
           </div>
 
           <div class="row2">
@@ -152,6 +161,7 @@
           <th style="min-width:140px;">pc_name</th>
           <th style="min-width:140px;">running_time</th>
           <th style="min-width:170px;">pc_specific</th>
+          <th style="min-width:260px;">notify_to</th>
           <th style="min-width:90px;">tag</th>
           <th style="min-width:170px;">expires</th>
           <th style="min-width:90px;">enabled</th>
@@ -163,7 +173,7 @@
       <tbody>
         {% if tasks|length == 0 %}
           <tr>
-            <td colspan="12" class="muted">まだタスクがありません</td>
+            <td colspan="13" class="muted">まだタスクがありません</td>
           </tr>
         {% endif %}
 
@@ -207,6 +217,17 @@
                 </select>
                 <button class="btn" form="upd-{{ t.task_id }}" type="submit">Save</button>
               </div>
+            </td>
+
+            <td>
+              <select name="conversation_id" form="upd-{{ t.task_id }}" style="width:250px;">
+                <option value="" {% if not t.conversation_id %}selected{% endif %}>(default: user)</option>
+                {% for c in conversations %}
+                  <option value="{{ c.conversation_id }}" {% if t.conversation_id == c.conversation_id %}selected{% endif %}>
+                    [{{ c.provider }}] {{ c.display_name or c.destination }}
+                  </option>
+                {% endfor %}
+              </select>
             </td>
 
             <td><span class="chip">{{ t.plan_tag }}</span></td>

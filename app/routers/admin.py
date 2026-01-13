@@ -21,6 +21,13 @@ JST = ZoneInfo("Asia/Tokyo")
 RERUN_STATUSES = {"queued", "running", "done", "failed", "canceled"}
 
 
+def _normalize_uuid(value: Optional[str]) -> Optional[str]:
+    v = (value or "").strip()
+    if not v:
+        return None
+    return v
+
+
 def parse_hhmmss_to_timedelta(run_time: str) -> timedelta:
     """'HH:MM:SS' -> datetime.timedelta"""
     rt = (run_time or "00:00:00").strip() or "00:00:00"
@@ -63,6 +70,7 @@ async def admin_user_tasks(request: Request, user_id: str):
                    pc_name,
                    to_char(run_time, 'HH24:MI:SS') AS run_time_hms,
                    is_pc_specific,
+                   conversation_id,
                    created_at, updated_at
             FROM tasks
             WHERE user_id=$1
@@ -71,9 +79,18 @@ async def admin_user_tasks(request: Request, user_id: str):
             user_id,
         )
 
+        conversations = await conn.fetch(
+            """
+            SELECT conversation_id, provider, destination, display_name
+            FROM conversations
+            ORDER BY provider ASC, created_at DESC
+            LIMIT 500
+            """
+        )
+
     return templates.TemplateResponse(
         "admin_tasks.html",
-        {"request": request, "title": "Tasks", "user": user, "tasks": tasks},
+        {"request": request, "title": "Tasks", "user": user, "tasks": tasks, "conversations": conversations},
     )
 
 
@@ -90,7 +107,9 @@ async def admin_create_task(
     run_time: str = Form("00:00:00"),
     is_pc_specific: str = Form("false"),
     notes: Optional[str] = Form(None),
+    conversation_id: Optional[str] = Form(None),
 ):
+    conversation_id = _normalize_uuid(conversation_id)
     if not TIME_RE.match(schedule_value.strip()):
         raise HTTPException(status_code=400, detail="schedule_value must be HH:MM")
 
@@ -123,10 +142,10 @@ async def admin_create_task(
             """
             INSERT INTO tasks (user_id, name, script_key, schedule_type, schedule_value, timezone,
                                enabled, notes, plan_tag, expires_at,
-                               pc_name, run_time, is_pc_specific)
+                               pc_name, run_time, is_pc_specific, conversation_id)
             VALUES ($1, $2, $3, 'daily_time', $4, 'Asia/Tokyo',
                     TRUE, $5, $6, $7,
-                    $8, $9, $10)
+                    $8, $9, $10, $11)
             """,
             user_id,
             name.strip(),
@@ -138,6 +157,7 @@ async def admin_create_task(
             pc_name,
             run_time_td,           # ✅ timedelta を渡す
             is_pc_specific_bool,
+            conversation_id,
         )
 
     return RedirectResponse(url=f"/admin/users/{user_id}/tasks", status_code=303)
@@ -150,6 +170,7 @@ async def admin_update_task_meta(
     pc_name: str = Form("default"),
     run_time: str = Form("00:00:00"),
     is_pc_specific: str = Form("false"),
+    conversation_id: Optional[str] = Form(None),
 ):
     pc_name = (pc_name or "default").strip() or "default"
 
@@ -157,6 +178,7 @@ async def admin_update_task_meta(
     run_time_td = parse_hhmmss_to_timedelta(run_time)
 
     is_pc_specific_bool = (is_pc_specific or "false").strip().lower() in {"true", "1", "yes", "on"}
+    conversation_id = _normalize_uuid(conversation_id)
 
     pool = request.app.state.db_pool
     async with pool.acquire() as conn:
@@ -171,16 +193,84 @@ async def admin_update_task_meta(
             SET pc_name=$1,
                 run_time=$2,
                 is_pc_specific=$3,
+                conversation_id=$4,
                 updated_at=NOW()
-            WHERE task_id=$4
+            WHERE task_id=$5
             """,
             pc_name,
             run_time_td,          # ✅ timedelta を渡す
             is_pc_specific_bool,
+            conversation_id,
             task_id,
         )
 
     return RedirectResponse(url=f"/admin/users/{user_id}/tasks", status_code=303)
+
+
+# ======================================================
+# Conversations (通知先管理)
+# ======================================================
+
+@router.get("/conversations", response_class=HTMLResponse)
+async def admin_conversations(request: Request):
+    pool = request.app.state.db_pool
+    async with pool.acquire() as conn:
+        conversations = await conn.fetch(
+            """
+            SELECT conversation_id, provider, destination, display_name, last_seen_at, created_at
+            FROM conversations
+            ORDER BY provider ASC, created_at DESC
+            LIMIT 800
+            """
+        )
+    return templates.TemplateResponse(
+        "admin_conversations.html",
+        {"request": request, "title": "Conversations", "conversations": conversations},
+    )
+
+
+@router.post("/conversations")
+async def admin_create_conversation(
+    request: Request,
+    provider: str = Form(...),
+    destination: str = Form(...),
+    display_name: Optional[str] = Form(None),
+):
+    provider = (provider or "").strip().lower()
+    if provider not in {"line", "lineworks"}:
+        raise HTTPException(status_code=400, detail="provider must be line or lineworks")
+
+    destination = (destination or "").strip()
+    if not destination:
+        raise HTTPException(status_code=400, detail="destination is required")
+
+    # lineworks: Incoming Webhook URLを想定（最低限のチェック）
+    if provider == "lineworks" and not destination.startswith("http"):
+        raise HTTPException(status_code=400, detail="lineworks destination must be a webhook URL")
+
+    pool = request.app.state.db_pool
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO conversations (provider, destination, display_name, last_seen_at)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (provider, destination) DO UPDATE
+            SET display_name = COALESCE(EXCLUDED.display_name, conversations.display_name),
+                last_seen_at = NOW()
+            """,
+            provider,
+            destination,
+            (display_name or "").strip() or None,
+        )
+    return RedirectResponse(url="/admin/conversations", status_code=303)
+
+
+@router.post("/conversations/{conversation_id}/delete")
+async def admin_delete_conversation(request: Request, conversation_id: str):
+    pool = request.app.state.db_pool
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM conversations WHERE conversation_id=$1", conversation_id)
+    return RedirectResponse(url="/admin/conversations", status_code=303)
 
 
 @router.post("/tasks/{task_id}/toggle")

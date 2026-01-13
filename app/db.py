@@ -27,6 +27,22 @@ async def init_db(pool: asyncpg.Pool) -> None:
         created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    -- ======================================================
+    -- ★ 通知先（LINE / LINE WORKS）
+    -- ======================================================
+    CREATE TABLE IF NOT EXISTS conversations (
+        conversation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        provider        TEXT NOT NULL CHECK (provider IN ('line','lineworks')),
+        destination     TEXT NOT NULL,
+        display_name    TEXT,
+        last_seen_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (provider, destination)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_conversations_provider ON conversations(provider);
+    CREATE INDEX IF NOT EXISTS idx_conversations_last_seen ON conversations(last_seen_at);
+
     CREATE TABLE IF NOT EXISTS tasks (
         task_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id        TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
@@ -46,6 +62,10 @@ async def init_db(pool: asyncpg.Pool) -> None:
         updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    -- ✅ タスクの通知先（任意）
+    ALTER TABLE tasks
+        ADD COLUMN IF NOT EXISTS conversation_id UUID NULL REFERENCES conversations(conversation_id) ON DELETE SET NULL;
+
     ALTER TABLE tasks
         ADD COLUMN IF NOT EXISTS pc_name TEXT NOT NULL DEFAULT 'default';
 
@@ -59,6 +79,7 @@ async def init_db(pool: asyncpg.Pool) -> None:
     CREATE INDEX IF NOT EXISTS idx_tasks_enabled  ON tasks(enabled);
     CREATE INDEX IF NOT EXISTS idx_tasks_plan_tag ON tasks(plan_tag);
     CREATE INDEX IF NOT EXISTS idx_tasks_pc_name  ON tasks(pc_name);
+    CREATE INDEX IF NOT EXISTS idx_tasks_conversation_id ON tasks(conversation_id);
 
     CREATE INDEX IF NOT EXISTS idx_tasks_is_pc_specific ON tasks(is_pc_specific);
 
