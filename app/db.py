@@ -99,6 +99,13 @@ async def init_db(pool: asyncpg.Pool) -> None:
     CREATE INDEX IF NOT EXISTS idx_task_runs_task_id ON task_runs(task_id);
     CREATE INDEX IF NOT EXISTS idx_task_runs_user_id ON task_runs(user_id);
 
+    -- ✅ 管理画面/検索を高速化（大量ログ対策）
+    CREATE INDEX IF NOT EXISTS idx_task_runs_task_started
+    ON task_runs(task_id, started_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_task_runs_started
+    ON task_runs(started_at DESC);
+
     -- ======================================================
     -- ★ 再実行キュー
     -- ======================================================
@@ -133,3 +140,12 @@ async def init_db(pool: asyncpg.Pool) -> None:
 
     async with pool.acquire() as conn:
         await conn.execute(base_sql)
+
+        # ✅ task_runs はログテーブルなので、無制限に増えないように保持期間で削除
+        # （Railway などで常時起動していても、再デプロイ/再起動のタイミングで自然に掃除される）
+        await conn.execute(
+            """
+            DELETE FROM task_runs
+            WHERE started_at < now() - interval '180 days'
+            """
+        )

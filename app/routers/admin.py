@@ -19,6 +19,10 @@ RUN_TIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
 PLAN_TAGS = {"free", "paid"}
 JST = ZoneInfo("Asia/Tokyo")
 
+# task_runs
+TASK_RUNS_RETENTION_DAYS = 180
+TASK_RUNS_PAGE_LIMIT = 500
+
 # rerun queue statuses
 RERUN_STATUSES = {"queued", "running", "done", "failed", "canceled"}
 
@@ -178,6 +182,109 @@ async def admin_tasks_all_csv(request: Request):
         iter_csv(),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="tasks.csv"'},
+    )
+
+
+# ======================================================
+# Task Runs (直近180日 / 一覧 / CSV)
+# ======================================================
+
+
+@router.get("/task-runs", response_class=HTMLResponse)
+async def admin_task_runs(request: Request):
+    """task_runs を直近180日分だけ表示（固定LIMIT）。"""
+    pool = request.app.state.db_pool
+    async with pool.acquire() as conn:
+        runs = await conn.fetch(
+            f"""
+            SELECT
+                tr.run_id,
+                tr.task_id,
+                t.name AS task_name,
+                tr.user_id,
+                u.user_name,
+                tr.runner_id,
+                tr.started_at,
+                tr.finished_at,
+                tr.status,
+                tr.exit_code
+            FROM task_runs tr
+            LEFT JOIN tasks t ON t.task_id = tr.task_id
+            LEFT JOIN users u ON u.user_id = tr.user_id
+            WHERE tr.started_at >= now() - interval '{TASK_RUNS_RETENTION_DAYS} days'
+            ORDER BY tr.started_at DESC
+            LIMIT {TASK_RUNS_PAGE_LIMIT}
+            """
+        )
+
+    return templates.TemplateResponse(
+        "admin_task_runs.html",
+        {
+            "request": request,
+            "title": "Task Runs",
+            "runs": runs,
+            "retention_days": TASK_RUNS_RETENTION_DAYS,
+            "limit": TASK_RUNS_PAGE_LIMIT,
+        },
+    )
+
+
+@router.get("/task-runs.csv")
+async def admin_task_runs_csv(request: Request):
+    """task_runs を直近180日分だけCSVダウンロード（期間固定）。"""
+    pool = request.app.state.db_pool
+    # ✅ 180日でも件数が多い場合があるので、fetch で全件をメモリに載せずにストリーム出力
+    query = f"""
+        SELECT
+            tr.run_id,
+            tr.task_id,
+            t.name AS task_name,
+            tr.user_id,
+            u.user_name,
+            tr.runner_id,
+            tr.started_at,
+            tr.finished_at,
+            tr.status,
+            tr.exit_code
+        FROM task_runs tr
+        LEFT JOIN tasks t ON t.task_id = tr.task_id
+        LEFT JOIN users u ON u.user_id = tr.user_id
+        WHERE tr.started_at >= now() - interval '{TASK_RUNS_RETENTION_DAYS} days'
+        ORDER BY tr.started_at DESC
+    """
+
+    header = [
+        "run_id",
+        "task_id",
+        "task_name",
+        "user_id",
+        "user_name",
+        "runner_id",
+        "started_at",
+        "finished_at",
+        "status",
+        "exit_code",
+    ]
+
+    async def iter_csv():
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(header)
+        yield output.getvalue()
+        output.seek(0)
+        output.truncate(0)
+
+        async with pool.acquire() as conn:
+            async for r in conn.cursor(query):
+                writer.writerow([r.get(k) for k in header])
+                yield output.getvalue()
+                output.seek(0)
+                output.truncate(0)
+
+    return StreamingResponse(
+        iter_csv(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="task_runs_last_{TASK_RUNS_RETENTION_DAYS}d.csv"'},
     )
 
 
