@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block top_right %}
+  <a class="btn" href="/admin/users">Users</a>
+  <a class="btn" href="/admin/conversations">Conversations</a>
+  <a class="btn" href="/admin/rerun-queue">Rerun Queue</a>
+  <a class="btn" href="/">Home</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:14px;">
+  <div class="card-h" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+    <div>All Tasks</div>
+    <div>
+      <a class="btn" href="/admin/tasks.csv">CSV Download</a>
+    </div>
+  </div>
+  <div class="card-b tablewrap">
+    <table style="min-width:1300px;">
+      <thead>
+        <tr>
+          <th>created</th>
+          <th>user</th>
+          <th>task</th>
+          <th>script</th>
+          <th>schedule</th>
+          <th>pc</th>
+          <th>run_time</th>
+          <th>enabled</th>
+          <th>plan</th>
+          <th>expires</th>
+          <th>conversation</th>
+          <th>task_id</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% if tasks|length == 0 %}
+        <tr><td colspan="12" class="muted">まだタスクがありません</td></tr>
+      {% endif %}
+      {% for t in tasks %}
+        <tr>
+          <td class="muted">{{ t.created_at.strftime("%Y-%m-%d %H:%M:%S") if t.created_at else "" }}</td>
+          <td>
+            <div><strong>{{ t.user_name or "unknown" }}</strong></div>
+            <div class="mono muted" style="font-size:12px;">{{ t.user_id }}</div>
+            <div style="margin-top:6px;">
+              <a class="btn" href="/admin/users/{{ t.user_id }}/tasks">Open</a>
+            </div>
+          </td>
+          <td><strong>{{ t.name }}</strong></td>
+          <td class="mono muted" style="font-size:12px;">{{ t.script_key }}</td>
+          <td class="mono">{{ t.schedule_type }} / {{ t.schedule_value }}</td>
+          <td class="mono">{{ t.pc_name }}</td>
+          <td class="mono">{{ t.run_time_hms }}</td>
+          <td>
+            {% if t.enabled %}
+              <span class="chip">ON</span>
+            {% else %}
+              <span class="chip">OFF</span>
+            {% endif %}
+            {% if t.is_pc_specific %}
+              <div class="muted" style="font-size:12px; margin-top:4px;">pc-specific</div>
+            {% endif %}
+          </td>
+          <td><span class="chip">{{ t.plan_tag }}</span></td>
+          <td class="muted">{{ t.expires_at.strftime("%Y-%m-%d") if t.expires_at else "" }}</td>
+          <td>
+            {% if t.conversation_id %}
+              <div class="mono">{{ t.conversation_provider or "" }}</div>
+              <div class="muted" style="font-size:12px;">{{ t.conversation_display_name or t.conversation_destination }}</div>
+            {% else %}
+              <span class="muted">(default)</span>
+            {% endif %}
+          </td>
+          <td class="mono muted" style="font-size:12px;">{{ t.task_id }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

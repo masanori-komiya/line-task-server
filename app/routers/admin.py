@@ -1,10 +1,12 @@
 import re
+import csv
+import io
 from datetime import datetime, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 from app.auth import require_admin
@@ -50,6 +52,133 @@ async def admin_users(request: Request):
             """
         )
     return templates.TemplateResponse("admin_users.html", {"request": request, "title": "Users", "users": users})
+
+
+# ======================================================
+# Tasks (全体一覧 / CSV)
+# ======================================================
+
+@router.get("/tasks", response_class=HTMLResponse)
+async def admin_tasks_all(request: Request):
+    """全ユーザーのタスクを一覧表示。"""
+    pool = request.app.state.db_pool
+    async with pool.acquire() as conn:
+        tasks = await conn.fetch(
+            """
+            SELECT
+                t.task_id,
+                t.user_id,
+                u.user_name,
+                t.name,
+                t.script_key,
+                t.schedule_type,
+                t.schedule_value,
+                t.timezone,
+                t.enabled,
+                t.plan_tag,
+                t.expires_at,
+                t.pc_name,
+                to_char(t.run_time, 'HH24:MI:SS') AS run_time_hms,
+                t.is_pc_specific,
+                t.conversation_id,
+                c.provider AS conversation_provider,
+                c.destination AS conversation_destination,
+                c.display_name AS conversation_display_name,
+                t.created_at,
+                t.updated_at
+            FROM tasks t
+            LEFT JOIN users u ON u.user_id = t.user_id
+            LEFT JOIN conversations c ON c.conversation_id = t.conversation_id
+            ORDER BY t.created_at DESC
+            LIMIT 2000
+            """
+        )
+
+    return templates.TemplateResponse(
+        "admin_tasks_all.html",
+        {"request": request, "title": "All Tasks", "tasks": tasks},
+    )
+
+
+@router.get("/tasks.csv")
+async def admin_tasks_all_csv(request: Request):
+    """全タスクのCSVをダウンロード。"""
+    pool = request.app.state.db_pool
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT
+                t.task_id,
+                t.user_id,
+                u.user_name,
+                t.name,
+                t.script_key,
+                t.schedule_type,
+                t.schedule_value,
+                t.timezone,
+                t.enabled,
+                t.notes,
+                t.plan_tag,
+                t.expires_at,
+                t.pc_name,
+                to_char(t.run_time, 'HH24:MI:SS') AS run_time,
+                t.is_pc_specific,
+                t.conversation_id,
+                c.provider AS conversation_provider,
+                c.destination AS conversation_destination,
+                c.display_name AS conversation_display_name,
+                t.created_at,
+                t.updated_at
+            FROM tasks t
+            LEFT JOIN users u ON u.user_id = t.user_id
+            LEFT JOIN conversations c ON c.conversation_id = t.conversation_id
+            ORDER BY t.created_at DESC
+            """
+        )
+
+    header = [
+        "task_id",
+        "user_id",
+        "user_name",
+        "name",
+        "script_key",
+        "schedule_type",
+        "schedule_value",
+        "timezone",
+        "enabled",
+        "notes",
+        "plan_tag",
+        "expires_at",
+        "pc_name",
+        "run_time",
+        "is_pc_specific",
+        "conversation_id",
+        "conversation_provider",
+        "conversation_destination",
+        "conversation_display_name",
+        "created_at",
+        "updated_at",
+    ]
+
+    def iter_csv():
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(header)
+        yield output.getvalue()
+        output.seek(0)
+        output.truncate(0)
+
+        for r in rows:
+            writer.writerow([r.get(k) for k in header])
+            yield output.getvalue()
+            output.seek(0)
+            output.truncate(0)
+
+    return StreamingResponse(
+        iter_csv(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="tasks.csv"'},
+    )
 
 
 @router.get("/users/{user_id}/tasks", response_class=HTMLResponse)
