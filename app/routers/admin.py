@@ -275,11 +275,13 @@ async def admin_task_runs_csv(request: Request):
         output.truncate(0)
 
         async with pool.acquire() as conn:
-            async for r in conn.cursor(query):
-                writer.writerow([r.get(k) for k in header])
-                yield output.getvalue()
-                output.seek(0)
-                output.truncate(0)
+            # ✅ asyncpg の cursor はトランザクション必須
+            async with conn.transaction():
+                async for r in conn.cursor(query):
+                    writer.writerow([r.get(k) for k in header])
+                    yield output.getvalue()
+                    output.seek(0)
+                    output.truncate(0)
 
     return StreamingResponse(
         iter_csv(),
@@ -391,7 +393,7 @@ async def admin_create_task(
             plan_tag,
             expires_at,
             pc_name,
-            run_time_td,           # ✅ timedelta を渡す
+            run_time_td,  # ✅ timedelta
             is_pc_specific_bool,
             conversation_id,
         )
@@ -434,7 +436,7 @@ async def admin_update_task_meta(
             WHERE task_id=$5
             """,
             pc_name,
-            run_time_td,          # ✅ timedelta を渡す
+            run_time_td,  # ✅ timedelta
             is_pc_specific_bool,
             conversation_id,
             task_id,
