@@ -130,3 +130,69 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
             "body": {"type": "box", "layout": "vertical", "spacing": "sm", "contents": contents},
         },
     }
+
+
+def build_terms_agreement_flex(current_ver: str, terms_url: str, privacy_url: str = "") -> Dict[str, Any]:
+    """利用規約への同意を促す Flex メッセージ（Postback で同意）"""
+    buttons = [
+        {
+            "type": "button",
+            "style": "link",
+            "height": "sm",
+            "action": {"type": "uri", "label": f"利用規約を開く（Ver.{current_ver}）", "uri": terms_url},
+        }
+    ]
+    if privacy_url:
+        buttons.append(
+            {
+                "type": "button",
+                "style": "link",
+                "height": "sm",
+                "action": {"type": "uri", "label": "プライバシーポリシーを開く", "uri": privacy_url},
+            }
+        )
+
+    buttons.append(
+        {
+            "type": "button",
+            "style": "primary",
+            "height": "sm",
+            "action": {
+                "type": "postback",
+                "label": "同意して開始",
+                "data": f"action=agree_terms&ver={current_ver}",
+            },
+        }
+    )
+
+    return {
+        "type": "flex",
+        "altText": "利用規約への同意が必要です",
+        "contents": {
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "md",
+                "contents": [
+                    {"type": "text", "text": "利用開始前の確認", "weight": "bold", "size": "lg", "wrap": True},
+                    {
+                        "type": "text",
+                        "text": "サービスのご利用には、利用規約・プライバシーポリシーへの同意が必要です。",
+                        "size": "sm",
+                        "wrap": True,
+                        "color": "#333333",
+                    },
+                    {
+                        "type": "text",
+                        "text": f"同意した規約のバージョン（Ver.{current_ver}）と日時は記録されます。",
+                        "size": "xs",
+                        "wrap": True,
+                        "color": "#666666",
+                    },
+                    {"type": "separator", "margin": "md"},
+                    {"type": "box", "layout": "vertical", "spacing": "sm", "margin": "md", "contents": buttons},
+                ],
+            },
+        },
+    }

@@ -26,6 +26,37 @@ async def init_db(pool: asyncpg.Pool) -> None:
         last_seen_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    -- ======================================================
+    -- ★ 利用規約（バージョン管理 / 同意ログ）
+    -- ======================================================
+    ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS agreed_terms_version TEXT,
+        ADD COLUMN IF NOT EXISTS agreed_terms_at TIMESTAMPTZ;
+
+    CREATE TABLE IF NOT EXISTS terms_versions (
+        version      TEXT PRIMARY KEY,
+        published_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        effective_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        title        TEXT NOT NULL DEFAULT '利用規約',
+        url          TEXT NOT NULL,
+        sha256       TEXT,
+        summary      TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS terms_agreements (
+        id            BIGSERIAL PRIMARY KEY,
+        user_id       TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+        terms_version TEXT NOT NULL REFERENCES terms_versions(version),
+        agreed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        channel       TEXT NOT NULL DEFAULT 'line',
+        source        TEXT,
+        request_id    TEXT,
+        UNIQUE (user_id, terms_version)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_terms_agreements_user
+        ON terms_agreements(user_id, agreed_at DESC);
+
 
     -- ======================================================
     -- ★ 通知先（LINE / LINE WORKS）
@@ -140,6 +171,25 @@ async def init_db(pool: asyncpg.Pool) -> None:
 
     async with pool.acquire() as conn:
         await conn.execute(base_sql)
+
+        # ======================================================
+        # ✅ 現行の利用規約バージョンを登録（なければ作成）
+        # ======================================================
+        current_ver = os.getenv("CURRENT_TERMS_VERSION", "1.0").strip() or "1.0"
+        terms_url = os.getenv("TERMS_URL", "").strip()
+        # TERMS_URL が未設定なら /terms?v=... の相対URLにする（同一サーバー配信想定）
+        if not terms_url:
+            terms_url = f"/terms?v={current_ver}"
+
+        await conn.execute(
+            """
+            INSERT INTO terms_versions (version, url, published_at, effective_at)
+            VALUES ($1, $2, NOW(), NOW())
+            ON CONFLICT (version) DO UPDATE SET url=EXCLUDED.url
+            """,
+            current_ver,
+            terms_url,
+        )
 
         # ✅ task_runs はログテーブルなので、無制限に増えないように保持期間で削除
         # （Railway などで常時起動していても、再デプロイ/再起動のタイミングで自然に掃除される）

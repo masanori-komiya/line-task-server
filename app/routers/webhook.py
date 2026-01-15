@@ -8,7 +8,7 @@ import asyncpg
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from app.line_api import build_tasks_flex, fetch_line_profile, reply_message
+from app.line_api import build_tasks_flex, build_terms_agreement_flex, fetch_line_profile, reply_message
 
 # ✅ LINE側が /line/webhook に投げてるので prefix を /line にする
 router = APIRouter(prefix="/line")
@@ -32,6 +32,45 @@ def verify_line_signature(body: bytes, x_line_signature: Optional[str]) -> None:
 # ==========================
 # コマンド判定
 # ==========================
+
+def _current_terms_version() -> str:
+    v = os.getenv("CURRENT_TERMS_VERSION", "1.0").strip()
+    return v or "1.0"
+
+
+def _terms_url(current_ver: str) -> str:
+    url = os.getenv("TERMS_URL", "").strip()
+    if url:
+        return url
+    # 同一サーバーで配信する想定（相対URL）
+    return f"/terms?v={current_ver}"
+
+
+def _privacy_url() -> str:
+    return os.getenv("PRIVACY_URL", "").strip()
+
+
+def _parse_postback_data(data: str) -> Dict[str, str]:
+    """action=agree_terms&ver=1.3 のような data を dict にする"""
+    out: Dict[str, str] = {}
+    for part in (data or "").split("&"):
+        if not part:
+            continue
+        if "=" in part:
+            k, v = part.split("=", 1)
+            out[k] = v
+        else:
+            out[part] = ""
+    return out
+
+
+async def _has_agreed_current_terms(pool: asyncpg.Pool, user_id: str, current_ver: str) -> bool:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT agreed_terms_version FROM users WHERE user_id=$1", user_id)
+    if not row:
+        return False
+    return (row["agreed_terms_version"] or "").strip() == current_ver
+
 def parse_rerun_command(text: str) -> Optional[str]:
     t = (text or "").strip()
     if not t:
@@ -167,19 +206,13 @@ async def line_webhook(
     pool: asyncpg.Pool = request.app.state.db_pool
 
     for ev in events:
-        if ev.get("type") != "message":
-            continue
-
-        message = ev.get("message") or {}
-        if message.get("type") != "text":
-            continue
-
-        text = message.get("text") or ""
+        ev_type = ev.get("type")
         reply_token = ev.get("replyToken")
         user_id = (ev.get("source") or {}).get("userId")
         if not reply_token or not user_id:
             continue
 
+        # プロフィール保存（displayName 等）
         profile = await fetch_line_profile(user_id)
         display_name = profile.get("displayName") or "user"
 
@@ -187,6 +220,70 @@ async def line_webhook(
             await upsert_line_conversation(conn, ev)  # ✅ groupId/roomId などを自動保存
             await upsert_user_from_profile(conn, user_id, profile)
 
+        current_ver = _current_terms_version()
+
+        # ==========================
+        # Postback（同意など）
+        # ==========================
+        if ev_type == "postback":
+            data = (ev.get("postback") or {}).get("data") or ""
+            pb = _parse_postback_data(data)
+
+            if pb.get("action") == "agree_terms":
+                agreed_ver = (pb.get("ver") or current_ver).strip() or current_ver
+
+                async with pool.acquire() as conn:
+                    # 同意ログ（同じ版は1回だけ）
+                    await conn.execute(
+                        """
+                        INSERT INTO terms_agreements (user_id, terms_version, channel, source)
+                        VALUES ($1, $2, 'line', 'postback')
+                        ON CONFLICT (user_id, terms_version) DO NOTHING
+                        """,
+                        user_id,
+                        agreed_ver,
+                    )
+                    # ユーザー側に「最新同意」をキャッシュ
+                    await conn.execute(
+                        """
+                        UPDATE users
+                        SET agreed_terms_version=$2, agreed_terms_at=NOW()
+                        WHERE user_id=$1
+                        """,
+                        user_id,
+                        agreed_ver,
+                    )
+
+                await reply_message(
+                    reply_token,
+                    [
+                        {"type": "text", "text": f"利用規約（Ver.{agreed_ver}）に同意しました。"},
+                        {"type": "text", "text": "メニューからサービスをご利用ください。"},
+                    ],
+                )
+            continue
+
+        # ==========================
+        # Text message
+        # ==========================
+        if ev_type != "message":
+            continue
+
+        message = ev.get("message") or {}
+        if message.get("type") != "text":
+            continue
+
+        text = message.get("text") or ""
+
+        # ✅ 規約同意ゲート（未同意ならここで止める）
+        if not await _has_agreed_current_terms(pool, user_id, current_ver):
+            flex = build_terms_agreement_flex(current_ver, _terms_url(current_ver), _privacy_url())
+            await reply_message(reply_token, [flex])
+            continue
+
+        # ==========================
+        # 既存コマンド
+        # ==========================
         if is_tasks_command(text):
             tasks = await fetch_tasks_for_user(pool, user_id)
             flex = build_tasks_flex(display_name, tasks)
@@ -214,6 +311,7 @@ async def line_webhook(
             continue
 
         await reply_message(reply_token, [{"type": "text", "text": "コマンド例：\n・tasks\n・<タスク名> 再実行"}])
+
 
     return JSONResponse({"ok": True})
 
