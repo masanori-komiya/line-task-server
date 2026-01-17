@@ -38,7 +38,6 @@ def verify_line_signature(body: bytes, x_line_signature: Optional[str]) -> None:
 # ==========================
 # コマンド判定
 # ==========================
-
 def _current_terms_version() -> str:
     v = os.getenv("CURRENT_TERMS_VERSION", "1.0").strip()
     return v or "1.0"
@@ -76,6 +75,7 @@ async def _has_agreed_current_terms(pool: asyncpg.Pool, user_id: str, current_ve
     if not row:
         return False
     return (row["agreed_terms_version"] or "").strip() == current_ver
+
 
 def parse_rerun_command(text: str) -> Optional[str]:
     t = (text or "").strip()
@@ -248,6 +248,18 @@ async def line_webhook(
             if pb.get("action") == "agree_terms":
                 agreed_ver = (pb.get("ver") or current_ver).strip() or current_ver
 
+                # ✅ すでに同じバージョンに同意済みなら、再送しない（=返信しない）
+                async with pool.acquire() as conn:
+                    row = await conn.fetchrow(
+                        "SELECT agreed_terms_version FROM users WHERE user_id=$1",
+                        user_id,
+                    )
+                if row and (row["agreed_terms_version"] or "").strip() == agreed_ver:
+                    # 任意：同意済みメニューへ寄せる（ID未設定なら何もしない）
+                    await set_user_rich_menu(user_id, agreed=True)
+                    continue
+
+                # 初回同意（または新バージョン同意）のときだけ保存＆返信
                 async with pool.acquire() as conn:
                     # 同意ログ（同じ版は1回だけ）
                     await conn.execute(
@@ -279,12 +291,13 @@ async def line_webhook(
                                 "利用規約へのご同意、ありがとうございます。\n"
                                 "ご質問やご相談がありましたら、お気軽にお声がけください。"
                             ),
-                        },
+                        }
                     ],
                 )
 
                 # 同意済みリッチメニューへ（任意：IDが未設定なら何もしない）
                 await set_user_rich_menu(user_id, agreed=True)
+
             continue
 
         # ==========================
@@ -338,13 +351,13 @@ async def line_webhook(
 
         await reply_message(reply_token, [{"type": "text", "text": "コマンド例：\n・tasks\n・<タスク名> 再実行"}])
 
-
     return JSONResponse({"ok": True})
 
 
 # ✅ 互換用：もしLINE側URLを /webhook にしていた場合でも受けられる
 # （prefix="/line" を使っているので、これは /webhook を追加するための別ルーターが必要）
 legacy_router = APIRouter()
+
 
 @legacy_router.post("/webhook")
 async def legacy_webhook(request: Request, x_line_signature: Optional[str] = Header(default=None)):
