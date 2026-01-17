@@ -8,7 +8,13 @@ import asyncpg
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from app.line_api import build_tasks_flex, build_terms_agreement_flex, fetch_line_profile, reply_message
+from app.line_api import (
+    build_tasks_flex,
+    build_terms_agreement_flex,
+    fetch_line_profile,
+    reply_message,
+    set_user_rich_menu,
+)
 
 # ✅ LINE側が /line/webhook に投げてるので prefix を /line にする
 router = APIRouter(prefix="/line")
@@ -223,6 +229,25 @@ async def line_webhook(
         current_ver = _current_terms_version()
 
         # ==========================
+        # Follow（友だち追加）
+        # ==========================
+        if ev_type == "follow":
+            # 未同意用リッチメニュー（任意：IDが未設定なら何もしない）
+            await set_user_rich_menu(user_id, agreed=False)
+
+            greeting = {
+                "type": "text",
+                "text": (
+                    "友だち追加ありがとうございます！🐾\n"
+                    "Nekonote Ops Service です。\n\n"
+                    "ご利用にあたり、利用規約への同意が必要です。"
+                ),
+            }
+            flex = build_terms_agreement_flex(current_ver, _terms_url(current_ver), _privacy_url())
+            await reply_message(reply_token, [greeting, flex])
+            continue
+
+        # ==========================
         # Postback（同意など）
         # ==========================
         if ev_type == "postback":
@@ -261,6 +286,9 @@ async def line_webhook(
                         {"type": "text", "text": "メニューからサービスをご利用ください。"},
                     ],
                 )
+
+                # 同意済みリッチメニューへ（任意：IDが未設定なら何もしない）
+                await set_user_rich_menu(user_id, agreed=True)
             continue
 
         # ==========================
@@ -277,6 +305,8 @@ async def line_webhook(
 
         # ✅ 規約同意ゲート（未同意ならここで止める）
         if not await _has_agreed_current_terms(pool, user_id, current_ver):
+            # 未同意（または規約更新で再同意が必要）なら未同意メニューに戻す
+            await set_user_rich_menu(user_id, agreed=False)
             flex = build_terms_agreement_flex(current_ver, _terms_url(current_ver), _privacy_url())
             await reply_message(reply_token, [flex])
             continue

@@ -7,9 +7,23 @@ import httpx
 LINE_PROFILE_API = "https://api.line.me/v2/bot/profile/{}"
 LINE_REPLY_API = "https://api.line.me/v2/bot/message/reply"
 
+# Rich menu APIs
+LINE_LINK_RICH_MENU_API = "https://api.line.me/v2/bot/user/{}/richmenu/{}"
+LINE_UNLINK_RICH_MENU_API = "https://api.line.me/v2/bot/user/{}/richmenu"
+
 
 def _token() -> str:
     return os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "").strip()
+
+
+def _rich_menu_preagree_id() -> str:
+    """未同意ユーザー向けのリッチメニューID（未設定でもOK）"""
+    return os.getenv("LINE_RICH_MENU_PREAGREE_ID", "").strip()
+
+
+def _rich_menu_main_id() -> str:
+    """同意済ユーザー向けのリッチメニューID（未設定でもOK）"""
+    return os.getenv("LINE_RICH_MENU_MAIN_ID", "").strip()
 
 
 async def fetch_line_profile(user_id: str) -> Dict[str, Any]:
@@ -45,6 +59,50 @@ async def reply_message(reply_token: str, messages: List[Dict[str, Any]]) -> boo
     except Exception as e:
         print("LINE reply exception:", repr(e))
         return False
+
+
+async def unlink_rich_menu_from_user(user_id: str) -> bool:
+    """ユーザーのリッチメニュー紐付け解除（未設定でも 200/404/204 を想定）"""
+    token = _token()
+    if not token:
+        return False
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.delete(LINE_UNLINK_RICH_MENU_API.format(user_id), headers=headers, timeout=10)
+        return r.status_code in (200, 204, 404)
+    except Exception:
+        return False
+
+
+async def link_rich_menu_to_user(user_id: str, rich_menu_id: str) -> bool:
+    """ユーザーにリッチメニューを紐付け"""
+    token = _token()
+    if not token:
+        return False
+    rich_menu_id = (rich_menu_id or "").strip()
+    if not rich_menu_id:
+        return False
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post(LINE_LINK_RICH_MENU_API.format(user_id, rich_menu_id), headers=headers, timeout=10)
+        if r.status_code not in (200, 201):
+            print("LINE link rich menu failed:", r.status_code, r.text)
+            return False
+        return True
+    except Exception as e:
+        print("LINE link rich menu exception:", repr(e))
+        return False
+
+
+async def set_user_rich_menu(user_id: str, *, agreed: bool) -> bool:
+    """同意状態に応じてリッチメニューを切り替え（ID未設定なら何もしない）"""
+    rich_menu_id = _rich_menu_main_id() if agreed else _rich_menu_preagree_id()
+    if not rich_menu_id:
+        return False
+    await unlink_rich_menu_from_user(user_id)
+    return await link_rich_menu_to_user(user_id, rich_menu_id)
 
 
 def _format_yy_mm_dd(value) -> str:
