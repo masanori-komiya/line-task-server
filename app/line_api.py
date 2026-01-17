@@ -241,13 +241,6 @@ def build_terms_agreement_flex(current_ver: str, terms_url: str, privacy_url: st
                         "wrap": True,
                         "color": "#333333",
                     },
-                    {
-                        "type": "text",
-                        "text": f"同意した規約のバージョン（Ver.{current_ver}）と日時は記録されます。",
-                        "size": "xs",
-                        "wrap": True,
-                        "color": "#666666",
-                    },
                     {"type": "separator", "margin": "md"},
                     {"type": "box", "layout": "vertical", "spacing": "sm", "margin": "md", "contents": buttons},
                 ],

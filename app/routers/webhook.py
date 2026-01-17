@@ -234,17 +234,8 @@ async def line_webhook(
         if ev_type == "follow":
             # 未同意用リッチメニュー（任意：IDが未設定なら何もしない）
             await set_user_rich_menu(user_id, agreed=False)
-
-            greeting = {
-                "type": "text",
-                "text": (
-                    "友だち追加ありがとうございます！🐾\n"
-                    "Nekonote Ops Service です。\n\n"
-                    "ご利用にあたり、利用規約への同意が必要です。"
-                ),
-            }
             flex = build_terms_agreement_flex(current_ver, _terms_url(current_ver), _privacy_url())
-            await reply_message(reply_token, [greeting, flex])
+            await reply_message(reply_token, [flex])
             continue
 
         # ==========================
