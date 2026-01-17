@@ -272,10 +272,13 @@ async def line_webhook(
 
                 await reply_message(
                     reply_token,
-                    [
-                        {"type": "text", "text": f"利用規約（Ver.{agreed_ver}）に同意しました。"},
-                        {"type": "text", "text": "メニューからサービスをご利用ください。"},
-                    ],
+                    {
+                        "type": "text",
+                        "text": (
+                            "利用規約へのご同意、ありがとうございます。\n"
+                            "ご質問やご相談がありましたら、お気軽にお声がけください。"
+                        ),
+                    },
                 )
 
                 # 同意済みリッチメニューへ（任意：IDが未設定なら何もしない）
