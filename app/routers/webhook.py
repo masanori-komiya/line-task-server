@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app.line_api import (
     build_tasks_flex,
+    build_task_detail_flex,
     build_terms_agreement_flex,
     fetch_line_profile,
     reply_message,
@@ -184,7 +185,7 @@ async def enqueue_rerun(pool: asyncpg.Pool, user_id: str, task_name: str, reques
 
 async def fetch_tasks_for_user(pool: asyncpg.Pool, user_id: str) -> list[dict]:
     sql = """
-    SELECT name, schedule_value, plan_tag, expires_at, enabled
+    SELECT task_id, name, schedule_value, plan_tag, expires_at, enabled
     FROM tasks
     WHERE user_id=$1
     ORDER BY created_at DESC
@@ -193,6 +194,19 @@ async def fetch_tasks_for_user(pool: asyncpg.Pool, user_id: str) -> list[dict]:
     async with pool.acquire() as conn:
         rows = await conn.fetch(sql, user_id)
     return [dict(r) for r in rows]
+
+
+async def fetch_task_detail_for_user(pool: asyncpg.Pool, user_id: str, task_id: str) -> Optional[dict]:
+    """task_id 指定で詳細を取得（user_id も一致するもののみ）"""
+    sql = """
+    SELECT task_id, name, schedule_value, plan_tag, payment_date, payment_amount, notes
+    FROM tasks
+    WHERE user_id=$1 AND task_id=$2::uuid
+    LIMIT 1
+    """
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(sql, user_id, task_id)
+    return dict(row) if row else None
 
 
 # ==========================
@@ -245,6 +259,24 @@ async def line_webhook(
         if ev_type == "postback":
             data = (ev.get("postback") or {}).get("data") or ""
             pb = _parse_postback_data(data)
+
+            # ==========================
+            # タスク詳細（タスク名タップ）
+            # ==========================
+            if pb.get("action") == "task_detail":
+                task_id = (pb.get("task_id") or "").strip()
+                if not task_id:
+                    await reply_message(reply_token, [{"type": "text", "text": "タスクIDが取得できませんでした。"}])
+                    continue
+
+                task = await fetch_task_detail_for_user(pool, user_id, task_id)
+                if not task:
+                    await reply_message(reply_token, [{"type": "text", "text": "タスクが見つかりませんでした。"}])
+                    continue
+
+                flex = build_task_detail_flex(display_name, task)
+                await reply_message(reply_token, [flex])
+                continue
 
             if pb.get("action") == "agree_terms":
                 agreed_ver = (pb.get("ver") or current_ver).strip() or current_ver

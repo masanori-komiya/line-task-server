@@ -122,6 +122,24 @@ def _format_yy_mm_dd(value) -> str:
         return "-"
 
 
+def _format_yyyy_mm_dd(value) -> str:
+    """決済日などを YYYY/MM/DD で表示"""
+    if not value:
+        return "-"
+    try:
+        if isinstance(value, datetime):
+            return value.strftime("%Y/%m/%d")
+        s = str(value)
+        # date / 'YYYY-MM-DD'
+        try:
+            dt = datetime.fromisoformat(s)
+            return dt.strftime("%Y/%m/%d")
+        except Exception:
+            return s[:10].replace("-", "/")
+    except Exception:
+        return "-"
+
+
 def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
     contents: List[Dict[str, Any]] = [
         {"type": "text", "text": f"{len(tasks)} 件", "size": "sm", "color": "#666666"},
@@ -145,6 +163,7 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
         contents.append({"type": "text", "text": "タスクがありません。", "size": "sm", "color": "#666666", "margin": "md", "wrap": True})
     else:
         for t in tasks[:20]:
+            task_id = str(t.get("task_id") or "").strip()
             name = t.get("name") or "-"
             time = t.get("schedule_value") or "-"
             plan = (t.get("plan_tag") or "free").lower()
@@ -157,6 +176,15 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
             plan_color = "#AAAAAA" if is_gray else ("#B42318" if plan == "paid" else ("#666666" if plan == "expired" else "#1A7F37"))
             status_suffix = "（disabled）" if is_gray else ""
 
+            # ✅ タップで詳細表示（Postback）
+            name_action: Dict[str, Any] = {}
+            if task_id:
+                name_action = {
+                    "type": "postback",
+                    "data": f"action=task_detail&task_id={task_id}",
+                    "displayText": f"{name} 詳細",
+                }
+
             contents.append(
                 {
                     "type": "box",
@@ -164,7 +192,15 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
                     "spacing": "sm",
                     "margin": "sm",
                     "contents": [
-                        {"type": "text", "text": f"{name}{status_suffix}", "size": "xxs", "wrap": True, "flex": 6, "color": row_color},
+                        {
+                            "type": "text",
+                            "text": f"{name}{status_suffix}",
+                            "size": "xxs",
+                            "wrap": True,
+                            "flex": 6,
+                            "color": row_color,
+                            **({"action": name_action} if name_action else {}),
+                        },
                         {"type": "text", "text": time,         "size": "xxs", "flex": 3, "align": "center", "color": row_color},
                         {"type": "text", "text": expires_text, "size": "xxs", "flex": 3, "align": "center", "color": row_color},
                         {"type": "text", "text": plan,         "size": "xxs", "flex": 2, "align": "center", "color": plan_color},
@@ -187,6 +223,62 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
             "type": "bubble",
             "styles": {"body": {"backgroundColor": "#FFFFFF"}},
             "body": {"type": "box", "layout": "vertical", "spacing": "sm", "contents": contents},
+        },
+    }
+
+
+def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, Any]:
+    """タスク詳細をFlexで返す"""
+    name = task.get("name") or "-"
+    schedule_value = task.get("schedule_value") or "-"
+    plan_tag = (task.get("plan_tag") or "free").lower()
+    expires_at = _format_yyyy_mm_dd(task.get("expires_at"))
+    payment_date = _format_yyyy_mm_dd(task.get("payment_date"))
+    payment_amount = (task.get("payment_amount") or "-").strip() or "-"
+    notes = (task.get("notes") or "-").strip() or "-"
+
+    rows = [
+        ("タスク名：", name),
+        ("実行時間：", schedule_value),
+        ("タグ：", plan_tag),
+        ("有効期限：", expires_at),
+        ("支払い日：", payment_date),
+        ("お支払い金額：", payment_amount),
+        ("ノート：", notes),
+    ]
+
+    contents: List[Dict[str, Any]] = []
+    for i, (label, value) in enumerate(rows):
+        if i:
+            contents.append({"type": "separator", "margin": "md"})
+        contents.append(
+            {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "xs",
+                "contents": [
+                    {"type": "text", "text": label, "size": "xs", "color": "#666666"},
+                    {"type": "text", "text": value, "size": "sm", "color": "#222222", "wrap": True},
+                ],
+            }
+        )
+
+    return {
+        "type": "flex",
+        "altText": f"タスク詳細：{name}",
+        "contents": {
+            "type": "bubble",
+            "styles": {"body": {"backgroundColor": "#FFFFFF"}},
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": [
+                    {"type": "text", "text": "タスク詳細", "weight": "bold", "size": "md"},
+                    {"type": "separator", "margin": "md"},
+                    *contents,
+                ],
+            },
         },
     }
 
