@@ -90,6 +90,8 @@ async def init_db(pool: asyncpg.Pool) -> None:
         pc_name        TEXT NOT NULL DEFAULT 'default',
         run_time       INTERVAL NOT NULL DEFAULT INTERVAL '00:00:00',
         is_pc_specific BOOLEAN NOT NULL DEFAULT FALSE,
+        payment_date   DATE NULL,
+        payment_amount TEXT,
         created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -110,6 +112,13 @@ async def init_db(pool: asyncpg.Pool) -> None:
 
     ALTER TABLE tasks
         ADD COLUMN IF NOT EXISTS is_pc_specific BOOLEAN NOT NULL DEFAULT FALSE;
+
+    -- ✅ 決済情報（任意）
+    ALTER TABLE tasks
+        ADD COLUMN IF NOT EXISTS payment_date DATE;
+
+    ALTER TABLE tasks
+        ADD COLUMN IF NOT EXISTS payment_amount TEXT;
 
     CREATE INDEX IF NOT EXISTS idx_tasks_user_id  ON tasks(user_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_enabled  ON tasks(enabled);

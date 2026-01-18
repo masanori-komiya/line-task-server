@@ -138,6 +138,17 @@
             </div>
           </div>
 
+          <div class="row2">
+            <div>
+              <label>Payment date (yyyy:mm:dd)</label>
+              <input name="payment_date" placeholder="2026:01:18" />
+            </div>
+            <div>
+              <label>Payment amount (text)</label>
+              <input name="payment_amount" placeholder="例：3000円 / 3,000 JPY" />
+            </div>
+          </div>
+
           <div>
             <label>Notes</label>
             <textarea name="notes" placeholder="任意：メモ"></textarea>
@@ -173,6 +184,8 @@
           <th style="min-width:170px;">pc_specific</th>
           <th style="min-width:260px;">notify_to</th>
           <th style="min-width:90px;">tag</th>
+          <th style="min-width:150px;">payment_date</th>
+          <th style="min-width:160px;">payment_amount</th>
           <th style="min-width:170px;">expires</th>
           <th style="min-width:90px;">enabled</th>
           <th style="min-width:260px;">notes</th>
@@ -184,7 +197,7 @@
       <tbody>
         {% if tasks|length == 0 %}
           <tr>
-            <td colspan="15" class="muted">まだタスクがありません</td>
+            <td colspan="17" class="muted">まだタスクがありません</td>
           </tr>
         {% endif %}
 
@@ -256,6 +269,27 @@
                 <option value="expired" {% if t.plan_tag=="expired" %}selected{% endif %}>expired</option>
                 <option value="test" {% if t.plan_tag=="test" %}selected{% endif %}>test</option>
               </select>
+            </td>
+
+            <td>
+              <input
+                name="payment_date"
+                form="upd-{{ t.task_id }}"
+                value="{{ t.payment_date_str or '' }}"
+                class="mono"
+                style="width:135px;"
+                placeholder="2026:01:18"
+              />
+            </td>
+
+            <td>
+              <input
+                name="payment_amount"
+                form="upd-{{ t.task_id }}"
+                value="{{ t.payment_amount or '' }}"
+                style="width:150px;"
+                placeholder="例：3000円"
+              />
             </td>
 
             <td>

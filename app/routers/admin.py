@@ -1,7 +1,7 @@
 import re
 import csv
 import io
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -18,6 +18,9 @@ TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 RUN_TIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
 PLAN_TAGS = {"free", "paid", "expired", "test"}
 JST = ZoneInfo("Asia/Tokyo")
+
+# 決済日（yyyy:mm:dd / yyyy-mm-dd / yyyy/mm/dd）を許容
+PAYMENT_DATE_RE = re.compile(r"^\d{4}[:/-]\d{2}[:/-]\d{2}$")
 
 # task_runs
 TASK_RUNS_RETENTION_DAYS = 180
@@ -41,6 +44,27 @@ def parse_hhmmss_to_timedelta(run_time: str) -> timedelta:
         raise HTTPException(status_code=400, detail="run_time must be HH:MM:SS")
     h, m, s = map(int, rt.split(":"))
     return timedelta(hours=h, minutes=m, seconds=s)
+
+
+def parse_payment_date(value: Optional[str]) -> Optional[date]:
+    """決済日を date に変換。
+
+    許容フォーマット:
+      - YYYY:MM:DD
+      - YYYY-MM-DD
+      - YYYY/MM/DD
+    """
+    v = (value or "").strip()
+    if not v:
+        return None
+    if not PAYMENT_DATE_RE.match(v):
+        raise HTTPException(status_code=400, detail="payment_date must be YYYY:MM:DD (or YYYY-MM-DD / YYYY/MM/DD)")
+    v_norm = v.replace(":", "-").replace("/", "-")
+    try:
+        d = datetime.strptime(v_norm, "%Y-%m-%d").date()
+        return d
+    except Exception:
+        raise HTTPException(status_code=400, detail="payment_date must be a valid date")
 
 
 @router.get("/users", response_class=HTMLResponse)
@@ -81,6 +105,9 @@ async def admin_tasks_all(request: Request):
                 t.enabled,
                 t.plan_tag,
                 t.expires_at,
+                t.payment_date,
+                to_char(t.payment_date, 'YYYY:MM:DD') AS payment_date_str,
+                t.payment_amount,
                 t.pc_name,
                 to_char(t.run_time, 'HH24:MI:SS') AS run_time_hms,
                 t.is_pc_specific,
@@ -124,6 +151,8 @@ async def admin_tasks_all_csv(request: Request):
                 t.notes,
                 t.plan_tag,
                 t.expires_at,
+                to_char(t.payment_date, 'YYYY:MM:DD') AS payment_date,
+                t.payment_amount,
                 t.pc_name,
                 to_char(t.run_time, 'HH24:MI:SS') AS run_time,
                 t.is_pc_specific,
@@ -154,6 +183,8 @@ async def admin_tasks_all_csv(request: Request):
         "notes",
         "plan_tag",
         "expires_at",
+        "payment_date",
+        "payment_amount",
         "pc_name",
         "run_time",
         "is_pc_specific",
@@ -306,6 +337,9 @@ async def admin_user_tasks(request: Request, user_id: str):
             """
             SELECT task_id, user_id, name, script_key, schedule_type, schedule_value, timezone,
                    enabled, notes, note_internal, plan_tag, expires_at,
+                   payment_date,
+                   to_char(payment_date, 'YYYY:MM:DD') AS payment_date_str,
+                   payment_amount,
                    pc_name,
                    to_char(run_time, 'HH24:MI:SS') AS run_time_hms,
                    is_pc_specific,
@@ -348,6 +382,8 @@ async def admin_create_task(
     notes: Optional[str] = Form(None),
     note_internal: Optional[str] = Form(None),
     conversation_id: Optional[str] = Form(None),
+    payment_date: Optional[str] = Form(None),
+    payment_amount: Optional[str] = Form(None),
 ):
     conversation_id = _normalize_uuid(conversation_id)
     if not TIME_RE.match(schedule_value.strip()):
@@ -378,14 +414,19 @@ async def admin_create_task(
         if not exists:
             raise HTTPException(status_code=404, detail="User not found")
 
+        pay_date = parse_payment_date(payment_date)
+        pay_amount = (payment_amount or "").strip() or None
+
         await conn.execute(
             """
             INSERT INTO tasks (user_id, name, script_key, schedule_type, schedule_value, timezone,
                                enabled, notes, note_internal, plan_tag, expires_at,
+                               payment_date, payment_amount,
                                pc_name, run_time, is_pc_specific, conversation_id)
             VALUES ($1, $2, $3, 'daily_time', $4, 'Asia/Tokyo',
                     TRUE, $5, $6, $7, $8,
-                    $9, $10, $11, $12)
+                    $9, $10,
+                    $11, $12, $13, $14)
             """,
             user_id,
             name.strip(),
@@ -395,6 +436,8 @@ async def admin_create_task(
             (note_internal or "").strip() or None,
             plan_tag,
             expires_at,
+            pay_date,
+            pay_amount,
             pc_name,
             run_time_td,  # ✅ timedelta
             is_pc_specific_bool,
@@ -418,6 +461,8 @@ async def admin_update_task_meta(
     enabled: str = Form("true"),
     notes: Optional[str] = Form(None),
     note_internal: Optional[str] = Form(None),
+    payment_date: Optional[str] = Form(None),
+    payment_amount: Optional[str] = Form(None),
 ):
     # schedule_value
     schedule_value = (schedule_value or "").strip()
@@ -455,6 +500,9 @@ async def admin_update_task_meta(
     notes_norm = (notes or "").strip() or None
     note_internal_norm = (note_internal or "").strip() or None
 
+    pay_date = parse_payment_date(payment_date)
+    pay_amount = (payment_amount or "").strip() or None
+
     pool = request.app.state.db_pool
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT user_id FROM tasks WHERE task_id=$1", task_id)
@@ -472,11 +520,13 @@ async def admin_update_task_meta(
                 conversation_id=$5,
                 plan_tag=$6,
                 expires_at=$7,
-                enabled=$8,
-                notes=$9,
-                note_internal=$10,
+                payment_date=$8,
+                payment_amount=$9,
+                enabled=$10,
+                notes=$11,
+                note_internal=$12,
                 updated_at=NOW()
-            WHERE task_id=$11
+            WHERE task_id=$13
             """,
             schedule_value or "00:00",
             pc_name,
@@ -485,6 +535,8 @@ async def admin_update_task_meta(
             conversation_id,
             plan_tag,
             expires_at,
+            pay_date,
+            pay_amount,
             enabled_bool,
             notes_norm,
             note_internal_norm,

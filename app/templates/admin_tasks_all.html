@@ -28,6 +28,8 @@
           <th>run_time</th>
           <th>enabled</th>
           <th>plan</th>
+          <th>payment_date</th>
+          <th>payment_amount</th>
           <th>expires</th>
           <th>conversation</th>
           <th>task_id</th>
@@ -35,7 +37,7 @@
       </thead>
       <tbody>
       {% if tasks|length == 0 %}
-        <tr><td colspan="12" class="muted">まだタスクがありません</td></tr>
+        <tr><td colspan="14" class="muted">まだタスクがありません</td></tr>
       {% endif %}
       {% for t in tasks %}
         <tr>
@@ -63,6 +65,8 @@
             {% endif %}
           </td>
           <td><span class="chip">{{ t.plan_tag }}</span></td>
+          <td class="mono">{{ t.payment_date_str or "" }}</td>
+          <td class="mono">{{ t.payment_amount or "" }}</td>
           <td class="muted">{{ t.expires_at.strftime("%Y-%m-%d") if t.expires_at else "" }}</td>
           <td>
             {% if t.conversation_id %}
