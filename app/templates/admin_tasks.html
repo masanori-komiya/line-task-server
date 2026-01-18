@@ -129,6 +129,7 @@
                 <option value="free">free（無料枠）</option>
                 <option value="paid">paid（有料枠）</option>
                 <option value="expired">expired（期限切れ）</option>
+                <option value="test">test（テスト用）</option>
               </select>
             </div>
             <div>
@@ -253,6 +254,7 @@
                 <option value="free" {% if t.plan_tag=="free" %}selected{% endif %}>free</option>
                 <option value="paid" {% if t.plan_tag=="paid" %}selected{% endif %}>paid</option>
                 <option value="expired" {% if t.plan_tag=="expired" %}selected{% endif %}>expired</option>
+                <option value="test" {% if t.plan_tag=="test" %}selected{% endif %}>test</option>
               </select>
             </td>
 

@@ -16,7 +16,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 RUN_TIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
-PLAN_TAGS = {"free", "paid", "expired","test"}
+PLAN_TAGS = {"free", "paid", "expired", "test"}
 JST = ZoneInfo("Asia/Tokyo")
 
 # task_runs
@@ -362,7 +362,7 @@ async def admin_create_task(
 
     plan_tag = (plan_tag or "free").strip()
     if plan_tag not in PLAN_TAGS:
-        raise HTTPException(status_code=400, detail="plan_tag must be free, paid, or expired")
+        raise HTTPException(status_code=400, detail="plan_tag must be free, paid, expired, or test")
 
     expires_at = None
     if expires_date:
@@ -434,7 +434,7 @@ async def admin_update_task_meta(
 
     plan_tag = (plan_tag or "free").strip()
     if plan_tag not in PLAN_TAGS:
-        raise HTTPException(status_code=400, detail="plan_tag must be free, paid, or expired")
+        raise HTTPException(status_code=400, detail="plan_tag must be free, paid, expired, or test")
 
     # enabled
     enabled_bool = (enabled or "true").strip().lower() in {"true", "1", "yes", "on"}
