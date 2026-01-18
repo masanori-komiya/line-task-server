@@ -150,17 +150,19 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
             "spacing": "sm",
             "margin": "sm",
             "contents": [
-                {"type": "text", "text": "タスク名", "size": "xxs", "weight": "bold", "flex": 6, "align": "center", "color": "#111111"},
-                {"type": "text", "text": "実行時間", "size": "xxs", "weight": "bold", "flex": 3, "align": "center", "color": "#111111"},
-                {"type": "text", "text": "期限",     "size": "xxs", "weight": "bold", "flex": 3, "align": "center", "color": "#111111"},
-                {"type": "text", "text": "プラン",   "size": "xxs", "weight": "bold", "flex": 2, "align": "center", "color": "#111111"},
+                {"type": "text", "text": "タスク名", "size": "xs", "weight": "bold", "flex": 6, "align": "center", "color": "#111111", "wrap": False, "maxLines": 1},
+                {"type": "text", "text": "実行時間", "size": "xs", "weight": "bold", "flex": 3, "align": "center", "color": "#111111", "wrap": False, "maxLines": 1},
+                {"type": "text", "text": "期限",     "size": "xs", "weight": "bold", "flex": 3, "align": "center", "color": "#111111", "wrap": False, "maxLines": 1},
+                {"type": "text", "text": "ステート",   "size": "xs", "weight": "bold", "flex": 3, "align": "center", "color": "#111111", "wrap": False, "maxLines": 1},
             ],
         },
         {"type": "separator", "margin": "sm"},
     ]
 
     if not tasks:
-        contents.append({"type": "text", "text": "タスクがありません。", "size": "sm", "color": "#666666", "margin": "md", "wrap": True})
+        contents.append(
+            {"type": "text", "text": "タスクがありません。", "size": "sm", "color": "#666666", "margin": "md", "wrap": True}
+        )
     else:
         for t in tasks[:20]:
             task_id = str(t.get("task_id") or "").strip()
@@ -173,10 +175,15 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
 
             is_gray = not enabled
             row_color = "#AAAAAA" if is_gray else "#222222"
-            plan_color = "#AAAAAA" if is_gray else ("#B42318" if plan == "paid" else ("#666666" if plan == "expired" else "#1A7F37"))
+            plan_color = (
+                "#AAAAAA" if is_gray
+                else "#B42318" if plan == "paid"
+                else "#666666" if plan == "expired"
+                else "#1A7F37"
+            )
             status_suffix = "（disabled）" if is_gray else ""
 
-            # ✅ タップで詳細表示（Postback）
+            # タップで詳細表示（Postback）
             name_action: Dict[str, Any] = {}
             if task_id:
                 name_action = {
@@ -195,15 +202,16 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
                         {
                             "type": "text",
                             "text": f"{name}{status_suffix}",
-                            "size": "xxs",
-                            "wrap": True,
+                            "size": "xs",
+                            "wrap": False,
+                            "maxLines": 1,   # ← はみ出たら …
                             "flex": 6,
                             "color": row_color,
                             **({"action": name_action} if name_action else {}),
                         },
-                        {"type": "text", "text": time,         "size": "xxs", "flex": 3, "align": "center", "color": row_color},
-                        {"type": "text", "text": expires_text, "size": "xxs", "flex": 3, "align": "center", "color": row_color},
-                        {"type": "text", "text": plan,         "size": "xxs", "flex": 2, "align": "center", "color": plan_color},
+                        {"type": "text", "text": time,         "size": "xs", "flex": 3, "align": "center", "color": row_color, "wrap": False, "maxLines": 1},
+                        {"type": "text", "text": expires_text, "size": "xs", "flex": 3, "align": "center", "color": row_color, "wrap": False, "maxLines": 1},
+                        {"type": "text", "text": plan,         "size": "xs", "flex": 2, "align": "center", "color": plan_color, "wrap": False, "maxLines": 1},
                     ],
                 }
             )
@@ -227,6 +235,7 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
     }
 
 
+
 def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, Any]:
     """タスク詳細をFlexで返す"""
     name = task.get("name") or "-"
@@ -240,7 +249,7 @@ def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, An
     rows = [
         ("タスク名：", name),
         ("実行時間：", schedule_value),
-        ("タグ：", plan_tag),
+        ("ステート：", plan_tag),
         ("有効期限：", expires_at),
         ("支払い日：", payment_date),
         ("お支払い金額：", payment_amount),
