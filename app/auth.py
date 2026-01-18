@@ -1,3 +1,4 @@
+import uuid
 import os
 import secrets
 from fastapi import Depends, HTTPException

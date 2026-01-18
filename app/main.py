@@ -1,3 +1,4 @@
+import uuid
 from fastapi import FastAPI
 
 from app.db import create_pool, init_db
