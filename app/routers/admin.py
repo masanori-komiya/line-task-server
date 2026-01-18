@@ -16,7 +16,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 RUN_TIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
-PLAN_TAGS = {"free", "paid", "expired"}
+PLAN_TAGS = {"free", "paid", "expired","test"}
 JST = ZoneInfo("Asia/Tokyo")
 
 # task_runs
