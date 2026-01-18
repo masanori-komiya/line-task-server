@@ -3,6 +3,7 @@ import base64
 import hashlib
 import hmac
 import os
+import re
 from typing import Any, Dict, Optional
 
 import asyncpg
@@ -80,12 +81,26 @@ async def _has_agreed_current_terms(pool: asyncpg.Pool, user_id: str, current_ve
 
 
 def parse_rerun_command(text: str) -> Optional[str]:
+    """Parse rerun command.
+
+    Accepts:
+      - <task_name>再実行
+      - <task_name> 再実行 (half-width spaces)
+      - <task_name>　再実行 (full-width spaces)
+      - Any mix of half/full-width spaces between name and 再実行
+
+    Returns task_name if matched, otherwise None.
+    """
     t = (text or "").strip()
     if not t:
         return None
-    if not t.endswith("再実行"):
+
+    # Allow zero or more half/full-width spaces right before "再実行" at end-of-text.
+    m = re.match(r"^(?P<task_name>.+?)[ \u3000]*再実行$", t)
+    if not m:
         return None
-    name = t[: -len("再実行")].strip()
+
+    name = (m.group("task_name") or "").strip()
     return name or None
 
 
