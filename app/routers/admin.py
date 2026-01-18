@@ -140,8 +140,9 @@ async def admin_tasks_all_csv(request: Request):
             """
         )
 
+    # NOTE: CSVの先頭列は task_id に固定（一覧・検索・外部連携で使いやすくするため）
     header = [
-        "task_id",
+        "task_id",  # <-- first column
         "user_id",
         "user_name",
         "name",
@@ -304,7 +305,7 @@ async def admin_user_tasks(request: Request, user_id: str):
         tasks = await conn.fetch(
             """
             SELECT task_id, user_id, name, script_key, schedule_type, schedule_value, timezone,
-                   enabled, notes, plan_tag, expires_at,
+                   enabled, notes, note_internal, plan_tag, expires_at,
                    pc_name,
                    to_char(run_time, 'HH24:MI:SS') AS run_time_hms,
                    is_pc_specific,
@@ -345,6 +346,7 @@ async def admin_create_task(
     run_time: str = Form("00:00:00"),
     is_pc_specific: str = Form("false"),
     notes: Optional[str] = Form(None),
+    note_internal: Optional[str] = Form(None),
     conversation_id: Optional[str] = Form(None),
 ):
     conversation_id = _normalize_uuid(conversation_id)
@@ -379,17 +381,18 @@ async def admin_create_task(
         await conn.execute(
             """
             INSERT INTO tasks (user_id, name, script_key, schedule_type, schedule_value, timezone,
-                               enabled, notes, plan_tag, expires_at,
+                               enabled, notes, note_internal, plan_tag, expires_at,
                                pc_name, run_time, is_pc_specific, conversation_id)
             VALUES ($1, $2, $3, 'daily_time', $4, 'Asia/Tokyo',
-                    TRUE, $5, $6, $7,
-                    $8, $9, $10, $11)
+                    TRUE, $5, $6, $7, $8,
+                    $9, $10, $11, $12)
             """,
             user_id,
             name.strip(),
             script_key.strip(),
             schedule_value.strip(),
             (notes or "").strip() or None,
+            (note_internal or "").strip() or None,
             plan_tag,
             expires_at,
             pc_name,
@@ -414,6 +417,7 @@ async def admin_update_task_meta(
     expires_date: Optional[str] = Form(None),  # YYYY-MM-DD
     enabled: str = Form("true"),
     notes: Optional[str] = Form(None),
+    note_internal: Optional[str] = Form(None),
 ):
     # schedule_value
     schedule_value = (schedule_value or "").strip()
@@ -449,6 +453,7 @@ async def admin_update_task_meta(
             expires_at = None
 
     notes_norm = (notes or "").strip() or None
+    note_internal_norm = (note_internal or "").strip() or None
 
     pool = request.app.state.db_pool
     async with pool.acquire() as conn:
@@ -469,8 +474,9 @@ async def admin_update_task_meta(
                 expires_at=$7,
                 enabled=$8,
                 notes=$9,
+                note_internal=$10,
                 updated_at=NOW()
-            WHERE task_id=$10
+            WHERE task_id=$11
             """,
             schedule_value or "00:00",
             pc_name,
@@ -481,6 +487,7 @@ async def admin_update_task_meta(
             expires_at,
             enabled_bool,
             notes_norm,
+            note_internal_norm,
             task_id,
         )
 

@@ -142,6 +142,11 @@
             <textarea name="notes" placeholder="任意：メモ"></textarea>
           </div>
 
+          <div>
+            <label>Notes (internal)</label>
+            <textarea name="note_internal" placeholder="管理者用メモ（ユーザーには表示しない）"></textarea>
+          </div>
+
           <div class="actions">
             <button class="btn" type="submit">Create</button>
           </div>
@@ -157,6 +162,7 @@
     <table class="tasks-table">
       <thead>
         <tr>
+          <th style="min-width:150px;">task_id</th>
           <th style="min-width:150px;">created</th>
           <th style="min-width:160px;">name</th>
           <th style="min-width:200px;">script_name</th>
@@ -169,6 +175,7 @@
           <th style="min-width:170px;">expires</th>
           <th style="min-width:90px;">enabled</th>
           <th style="min-width:260px;">notes</th>
+          <th style="min-width:260px;">notes_internal</th>
           <th style="min-width:190px; text-align:right;">actions</th>
         </tr>
       </thead>
@@ -176,12 +183,13 @@
       <tbody>
         {% if tasks|length == 0 %}
           <tr>
-            <td colspan="13" class="muted">まだタスクがありません</td>
+            <td colspan="15" class="muted">まだタスクがありません</td>
           </tr>
         {% endif %}
 
         {% for t in tasks %}
           <tr>
+            <td class="mono muted" style="font-size:12px;">{{ t.task_id }}</td>
             <td class="muted mono">
               {{ t.created_at.strftime("%Y-%m-%d %H:%M:%S") if t.created_at else "" }}
             </td>
@@ -272,6 +280,15 @@
                 class="muted"
                 style="width:250px; height:34px;"
               >{{ t.notes or "" }}</textarea>
+            </td>
+
+            <td>
+              <textarea
+                name="note_internal"
+                form="upd-{{ t.task_id }}"
+                class="muted"
+                style="width:250px; height:34px;"
+              >{{ t.note_internal or "" }}</textarea>
             </td>
 
             <td style="text-align:right;">

@@ -84,6 +84,7 @@ async def init_db(pool: asyncpg.Pool) -> None:
         timezone       TEXT NOT NULL DEFAULT 'Asia/Tokyo',
         enabled        BOOLEAN NOT NULL DEFAULT TRUE,
         notes          TEXT,
+        note_internal  TEXT,
         plan_tag       TEXT NOT NULL DEFAULT 'free',
         expires_at     TIMESTAMPTZ NULL,
         pc_name        TEXT NOT NULL DEFAULT 'default',
@@ -96,6 +97,10 @@ async def init_db(pool: asyncpg.Pool) -> None:
     -- ✅ タスクの通知先（任意）
     ALTER TABLE tasks
         ADD COLUMN IF NOT EXISTS conversation_id UUID NULL REFERENCES conversations(conversation_id) ON DELETE SET NULL;
+
+    -- ✅ 内部メモ（管理者のみ）
+    ALTER TABLE tasks
+        ADD COLUMN IF NOT EXISTS note_internal TEXT;
 
     ALTER TABLE tasks
         ADD COLUMN IF NOT EXISTS pc_name TEXT NOT NULL DEFAULT 'default';
