@@ -3,3 +3,7 @@ __pycache__/
 .env
 *.pyc
 .venv/
+# Windows Mark-of-the-Web / Zone files (if surfaced as files)
+Zone.Identifier
+*.Zone.Identifier
+*Zone.Identifier*

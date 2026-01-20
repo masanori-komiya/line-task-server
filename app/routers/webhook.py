@@ -397,7 +397,22 @@ async def line_webhook(
             await reply_message(reply_token, [{"type": "text", "text": msg}])
             continue
 
-        await reply_message(reply_token, [{"type": "text", "text": "コマンド例：\n・tasks\n・<タスク名> 再実行"}])
+        # ==========================
+        # ✅ 未対応メッセージ：受付メッセージを返す
+        # ==========================
+        await reply_message(
+            reply_token,
+            [
+                {
+                    "type": "text",
+                    "text": (
+                        "メッセージありがとうございます。\n"
+                        "担当者が確認するまで、しばらくお待ちください。"
+                    ),
+                }
+            ],
+        )
+        continue
 
     return JSONResponse({"ok": True})
 
