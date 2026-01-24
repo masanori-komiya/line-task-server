@@ -27,6 +27,59 @@ def _rich_menu_main_id() -> str:
     return os.getenv("LINE_RICH_MENU_MAIN_ID", "").strip()
 
 
+def _stripe_payment_link(plan_tag: str) -> str:
+    """Stripe Payment Link のURLを返す。
+    優先順位: tasks.stripe_payment_link -> STRIPE_PAYMENT_LINK_<PLAN> -> STRIPE_PAYMENT_LINK_URL
+    """
+    tag = (plan_tag or "").strip().upper() or "FREE"
+    url = os.getenv(f"STRIPE_PAYMENT_LINK_{tag}", "").strip()
+    if url:
+        return url
+    return os.getenv("STRIPE_PAYMENT_LINK_URL", "").strip()
+
+
+
+def _stripe_payment_links_from_env() -> Dict[str, str]:
+    """Stripe Payment Link（期間別）を環境変数から取得。
+    期待する環境変数:
+      - STRIPE_PAYMENT_LINK_1M
+      - STRIPE_PAYMENT_LINK_3M
+      - STRIPE_PAYMENT_LINK_6M
+    """
+    return {
+        "1m": os.getenv("STRIPE_PAYMENT_LINK_1M", "").strip(),
+        "3m": os.getenv("STRIPE_PAYMENT_LINK_3M", "").strip(),
+        "6m": os.getenv("STRIPE_PAYMENT_LINK_6M", "").strip(),
+    }
+
+
+def _stripe_payment_links(task: Dict[str, Any], plan_tag: str) -> Dict[str, str]:
+    """Stripeの決済リンク（期間別）を返す。
+    優先順位:
+      1) DB (task.stripe_payment_link_1m / _3m / _6m) があればそれ
+      2) env (STRIPE_PAYMENT_LINK_1M / 3M / 6M)
+      3) legacy: 単一リンク (task.stripe_payment_link → STRIPE_PAYMENT_LINK_<PLAN> → STRIPE_PAYMENT_LINK_URL)
+    """
+    d = {
+        "1m": (task.get("stripe_payment_link_1m") or "").strip(),
+        "3m": (task.get("stripe_payment_link_3m") or "").strip(),
+        "6m": (task.get("stripe_payment_link_6m") or "").strip(),
+    }
+
+    env_d = _stripe_payment_links_from_env()
+    for k in d:
+        if not d[k] and env_d.get(k):
+            d[k] = env_d[k]
+
+    if not any(d.values()):
+        legacy = (task.get("stripe_payment_link") or "").strip() or _stripe_payment_link(plan_tag)
+        if legacy:
+            d["1m"] = legacy
+
+    return d
+
+
+
 async def fetch_line_profile(user_id: str) -> Dict[str, Any]:
     token = _token()
     if not token:
@@ -237,7 +290,7 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
 
 
 def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, Any]:
-    """タスク詳細をFlexで返す"""
+    """タスク詳細をFlexで返す（必要ならStripe決済リンクボタン付き）"""
     name = task.get("name") or "-"
     schedule_value = task.get("schedule_value") or "-"
     plan_tag = (task.get("plan_tag") or "free").lower()
@@ -245,6 +298,9 @@ def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, An
     payment_date = _format_yyyy_mm_dd(task.get("payment_date"))
     payment_amount = (task.get("payment_amount") or "-").strip() or "-"
     notes = (task.get("notes") or "-").strip() or "-"
+
+    # Stripe決済リンク（期間別）を取得（なければ legacy 単一リンクにフォールバック）
+    pay_links = _stripe_payment_links(task, plan_tag)
 
     rows = [
         ("タスク名：", name),
@@ -272,26 +328,67 @@ def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, An
             }
         )
 
-    return {
-        "type": "flex",
-        "altText": f"タスク詳細：{name}",
-        "contents": {
-            "type": "bubble",
-            "styles": {"body": {"backgroundColor": "#FFFFFF"}},
-            "body": {
-                "type": "box",
-                "layout": "vertical",
-                "spacing": "sm",
-                "contents": [
-                    {"type": "text", "text": "タスク詳細", "weight": "bold", "size": "md"},
-                    {"type": "separator", "margin": "md"},
-                    *contents,
-                ],
-            },
+    bubble: Dict[str, Any] = {
+        "type": "bubble",
+        "styles": {"body": {"backgroundColor": "#FFFFFF"}},
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "sm",
+            "contents": [
+                {"type": "text", "text": "タスク詳細", "weight": "bold", "size": "md"},
+                {"type": "separator", "margin": "md"},
+                *contents,
+            ],
         },
     }
 
+    # ✅ 決済リンクがあるときだけボタンを付ける（期間別: 1/3/6か月）
+    buttons: List[Dict[str, Any]] = []
 
+    if pay_links.get("1m"):
+        buttons.append(
+            {
+                "type": "button",
+                "style": "primary",
+                "height": "sm",
+                "action": {"type": "uri", "label": "1か月（¥5,000）", "uri": pay_links["1m"]},
+            }
+        )
+    if pay_links.get("3m"):
+        buttons.append(
+            {
+                "type": "button",
+                "style": "primary",
+                "height": "sm",
+                "action": {"type": "uri", "label": "3か月（¥12,000）", "uri": pay_links["3m"]},
+            }
+        )
+    if pay_links.get("6m"):
+        buttons.append(
+            {
+                "type": "button",
+                "style": "primary",
+                "height": "sm",
+                "action": {"type": "uri", "label": "6か月（¥18,000）", "uri": pay_links["6m"]},
+            }
+        )
+
+    if buttons:
+        bubble["footer"] = {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "sm",
+            "contents": buttons,
+        }
+
+
+
+    return {
+        "type": "flex",
+        "altText": f"タスク詳細：{name}",
+        "contents": bubble,
+    }
 def build_terms_agreement_flex(current_ver: str, terms_url: str, privacy_url: str = "") -> Dict[str, Any]:
     """利用規約への同意を促す Flex メッセージ（Postback で同意）"""
     buttons = [

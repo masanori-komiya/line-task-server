@@ -214,7 +214,7 @@ async def fetch_tasks_for_user(pool: asyncpg.Pool, user_id: str) -> list[dict]:
 async def fetch_task_detail_for_user(pool: asyncpg.Pool, user_id: str, task_id: str) -> Optional[dict]:
     """task_id 指定で詳細を取得（user_id も一致するもののみ）"""
     sql = """
-    SELECT task_id, name, schedule_value, plan_tag, payment_date, payment_amount, notes
+    SELECT task_id, name, schedule_value, plan_tag, expires_at, payment_date, payment_amount, notes, stripe_payment_link
     FROM tasks
     WHERE user_id=$1 AND task_id=$2::uuid
     LIMIT 1

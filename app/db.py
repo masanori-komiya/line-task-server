@@ -96,7 +96,12 @@ async def init_db(pool: asyncpg.Pool) -> None:
         updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    -- ✅ タスクの通知先（任意）
+    
+    -- ✅ Stripe決済リンク（任意。未設定なら環境変数を利用）
+    ALTER TABLE tasks
+        ADD COLUMN IF NOT EXISTS stripe_payment_link TEXT;
+
+-- ✅ タスクの通知先（任意）
     ALTER TABLE tasks
         ADD COLUMN IF NOT EXISTS conversation_id UUID NULL REFERENCES conversations(conversation_id) ON DELETE SET NULL;
 
