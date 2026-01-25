@@ -2,6 +2,7 @@ import uuid
 import os
 from datetime import datetime
 from typing import Any, Dict, List
+from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 
 import httpx
 
@@ -77,6 +78,22 @@ def _stripe_payment_links(task: Dict[str, Any], plan_tag: str) -> Dict[str, str]
             d["1m"] = legacy
 
     return d
+
+
+def _with_client_reference_id(base_url: str, client_reference_id: str) -> str:
+    """Payment Link に client_reference_id を付与して返す（既存クエリも保持）"""
+    if not base_url:
+        return ""
+    try:
+        u = urlparse(base_url)
+        q = dict(parse_qsl(u.query, keep_blank_values=True))
+        q["client_reference_id"] = client_reference_id
+        new_q = urlencode(q, doseq=True)
+        return urlunparse((u.scheme, u.netloc, u.path, u.params, new_q, u.fragment))
+    except Exception:
+        # 最悪でも末尾に付ける（安全側）
+        sep = "&" if "?" in base_url else "?"
+        return f"{base_url}{sep}client_reference_id={client_reference_id}"
 
 
 
@@ -352,7 +369,7 @@ def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, An
                 "type": "button",
                 "style": "primary",
                 "height": "sm",
-                "action": {"type": "uri", "label": "1か月（¥5,000）", "uri": pay_links["1m"]},
+                "action": {"type": "uri", "label": "1か月（¥5,000）", "uri": _with_client_reference_id(pay_links["1m"], f"{task.get('task_id', '')}_1m") if task.get("task_id") else pay_links["1m"]},
             }
         )
     if pay_links.get("3m"):
@@ -361,7 +378,7 @@ def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, An
                 "type": "button",
                 "style": "primary",
                 "height": "sm",
-                "action": {"type": "uri", "label": "3か月（¥12,000）", "uri": pay_links["3m"]},
+                "action": {"type": "uri", "label": "3か月（¥12,000）", "uri": _with_client_reference_id(pay_links["3m"], f"{task.get('task_id', '')}_3m") if task.get("task_id") else pay_links["3m"]},
             }
         )
     if pay_links.get("6m"):
@@ -370,7 +387,7 @@ def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, An
                 "type": "button",
                 "style": "primary",
                 "height": "sm",
-                "action": {"type": "uri", "label": "6か月（¥18,000）", "uri": pay_links["6m"]},
+                "action": {"type": "uri", "label": "6か月（¥18,000）", "uri": _with_client_reference_id(pay_links["6m"], f"{task.get('task_id', '')}_6m") if task.get("task_id") else pay_links["6m"]},
             }
         )
 

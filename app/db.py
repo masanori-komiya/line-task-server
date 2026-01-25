@@ -186,6 +186,15 @@ async def init_db(pool: asyncpg.Pool) -> None:
     CREATE UNIQUE INDEX IF NOT EXISTS uq_rerun_active_task
     ON task_rerun_queue(task_id)
     WHERE status IN ('queued', 'running');
+
+    -- ======================================================
+    -- ★ Stripe Webhook 受信ログ（冪等性・デバッグ用）
+    -- ======================================================
+    CREATE TABLE IF NOT EXISTS stripe_events (
+        event_id    TEXT PRIMARY KEY,
+        received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        payload     JSONB
+    );
     """
 
     async with pool.acquire() as conn:
