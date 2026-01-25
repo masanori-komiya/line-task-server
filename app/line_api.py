@@ -289,8 +289,8 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
             contents.append(
                 {
                     "type": "text",
-                    "text": "※ タスク名をタップすることで詳細表示できます。",
-                    "size": "xs",
+                    "text": "※ タスク名をタップで詳細表示できます。",
+                    "size": "xxs",
                     "color": "#999999",
                     "wrap": True,
                     "margin": "md",
