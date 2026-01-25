@@ -285,6 +285,18 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
                     ],
                 }
             )
+                    # ✅ タスクがあるときだけ注記を表示（テーブルの下）
+            contents.append(
+                {
+                    "type": "text",
+                    "text": "※ タスク名をタップすることで詳細表示できます。",
+                    "size": "xs",
+                    "color": "#999999",
+                    "wrap": True,
+                    "margin": "md",
+                }
+            )
+
 
         if len(tasks) > 20:
             contents.extend(
@@ -324,7 +336,7 @@ def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, An
         ("実行時間：", schedule_value),
         ("ステート：", plan_tag),
         ("有効期限：", expires_at),
-        ("支払い日：", payment_date),
+        ("お支払い日：", payment_date),
         ("お支払い金額：", payment_amount),
         ("ノート：", notes),
     ]
@@ -396,8 +408,13 @@ def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, An
             "type": "box",
             "layout": "vertical",
             "spacing": "sm",
-            "contents": buttons,
+            "contents": [
+                {"type": "text", "text": "決済リンク", "size": "sm", "weight": "bold", "color": "#111111"},
+                {"type": "separator", "margin": "sm"},
+                *buttons,
+            ],
         }
+
 
 
 
