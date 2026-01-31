@@ -394,7 +394,7 @@ def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, An
         buttons.append(
             {
                 "type": "button",
-                "style": "primary" if plan != "12m" else "secondary",
+                "style": "primary" if plan != "12m" else "primary",
                 "height": "sm",
                 "action": {"type": "uri", "label": label, "uri": uri},
             }
