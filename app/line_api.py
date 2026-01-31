@@ -19,7 +19,7 @@ PLAN_ORDER = ["3m", "6m", "12m"]
 # ✅ 表示ラベル（必要なら金額だけ変えればOK）
 PLAN_LABELS = {
     "3m": "3か月（¥12,000）",
-    "6m": "6か月（¥18,000）",
+    "6m": "6か月（¥21,000）",
     "12m": "12か月（¥36,000）",
 }
 
@@ -394,7 +394,7 @@ def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, An
         buttons.append(
             {
                 "type": "button",
-                "style": "primary" if plan != "12m" else "primary",
+                "style": "primary",
                 "height": "sm",
                 "action": {"type": "uri", "label": label, "uri": uri},
             }
