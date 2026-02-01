@@ -262,10 +262,9 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
         for t in tasks[:20]:
             task_id = str(t.get("task_id") or "").strip()
             name_raw = t.get("name") or "-"
-            name = ("[mini] " + name_raw) if task_type == "mini" else name_raw
+            name = name_raw
             time = t.get("schedule_value") or "-"
             plan = (t.get("plan_tag") or "free").lower()
-            task_type = (t.get("task_type") or "normal").lower()
             enabled = bool(t.get("enabled", True))
 
             expires_text = _format_yy_mm_dd(t.get("expires_at"))
