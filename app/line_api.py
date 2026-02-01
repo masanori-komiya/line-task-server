@@ -49,18 +49,35 @@ def _stripe_payment_link(plan_tag: str) -> str:
     return os.getenv("STRIPE_PAYMENT_LINK_URL", "").strip()
 
 
-def _stripe_payment_links_from_env() -> Dict[str, str]:
+def _stripe_payment_links_from_env(task_type: str) -> Dict[str, str]:
     """Stripe Payment Link（期間別）を環境変数から取得。
-    期待する環境変数:
-      - STRIPE_PAYMENT_LINK_3M
-      - STRIPE_PAYMENT_LINK_6M
-      - STRIPE_PAYMENT_LINK_12M
+
+    task_type ごとに出し分けたい場合は、以下の環境変数を設定する:
+      - STRIPE_PAYMENT_LINK_3M_NORMAL / _6M_NORMAL / _12M_NORMAL
+      - STRIPE_PAYMENT_LINK_3M_MINI   / _6M_MINI   / _12M_MINI
+
+    未設定の場合は従来の共通設定にフォールバック:
+      - STRIPE_PAYMENT_LINK_3M / 6M / 12M
     """
-    return {
-        "3m": os.getenv("STRIPE_PAYMENT_LINK_3M", "").strip(),
-        "6m": os.getenv("STRIPE_PAYMENT_LINK_6M", "").strip(),
-        "12m": os.getenv("STRIPE_PAYMENT_LINK_12M", "").strip(),
+    t = (task_type or "normal").strip().lower()
+    suffix = "MINI" if t == "mini" else "NORMAL"
+
+    # type-specific first
+    d = {
+        "3m": os.getenv(f"STRIPE_PAYMENT_LINK_3M_{suffix}", "").strip(),
+        "6m": os.getenv(f"STRIPE_PAYMENT_LINK_6M_{suffix}", "").strip(),
+        "12m": os.getenv(f"STRIPE_PAYMENT_LINK_12M_{suffix}", "").strip(),
     }
+
+    # fallback to shared
+    if not d["3m"]:
+        d["3m"] = os.getenv("STRIPE_PAYMENT_LINK_3M", "").strip()
+    if not d["6m"]:
+        d["6m"] = os.getenv("STRIPE_PAYMENT_LINK_6M", "").strip()
+    if not d["12m"]:
+        d["12m"] = os.getenv("STRIPE_PAYMENT_LINK_12M", "").strip()
+
+    return d
 
 
 def _stripe_payment_links(task: Dict[str, Any], plan_tag: str) -> Dict[str, str]:
@@ -77,7 +94,7 @@ def _stripe_payment_links(task: Dict[str, Any], plan_tag: str) -> Dict[str, str]
         "12m": (task.get("stripe_payment_link_12m") or "").strip(),
     }
 
-    env_d = _stripe_payment_links_from_env()
+    env_d = _stripe_payment_links_from_env(task.get("task_type") or "normal")
     for k in d:
         if not d[k] and env_d.get(k):
             d[k] = env_d[k]
