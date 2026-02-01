@@ -244,9 +244,11 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
     else:
         for t in tasks[:20]:
             task_id = str(t.get("task_id") or "").strip()
-            name = t.get("name") or "-"
+            name_raw = t.get("name") or "-"
+            name = ("[mini] " + name_raw) if task_type == "mini" else name_raw
             time = t.get("schedule_value") or "-"
             plan = (t.get("plan_tag") or "free").lower()
+            task_type = (t.get("task_type") or "normal").lower()
             enabled = bool(t.get("enabled", True))
 
             expires_text = _format_yy_mm_dd(t.get("expires_at"))
@@ -330,6 +332,7 @@ def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, An
     name = task.get("name") or "-"
     schedule_value = task.get("schedule_value") or "-"
     plan_tag = (task.get("plan_tag") or "free").lower()
+    task_type = (task.get("task_type") or "normal").lower()
     expires_at = _format_yyyy_mm_dd(task.get("expires_at"))
     payment_date = _format_yyyy_mm_dd(task.get("payment_date"))
     payment_amount = (task.get("payment_amount") or "-").strip() or "-"
@@ -342,6 +345,7 @@ def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, An
         ("タスク名：", name),
         ("実行時間：", schedule_value),
         ("ステート：", plan_tag),
+        ("種別：", task_type),
         ("有効期限：", expires_at),
         ("お支払い日：", payment_date),
         ("お支払い金額：", payment_amount),

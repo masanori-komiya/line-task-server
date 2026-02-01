@@ -7,6 +7,7 @@ class TaskCreate(BaseModel):
     script_key: str = Field(min_length=1, max_length=80)
     schedule_value: str = Field(min_length=4, max_length=5)  # "HH:MM"
     notes: str | None = Field(default=None, max_length=2000)
+    task_type: str | None = Field(default=None, max_length=20)
 
 
 class TaskUpdate(BaseModel):

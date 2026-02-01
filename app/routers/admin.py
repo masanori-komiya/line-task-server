@@ -17,6 +17,7 @@ templates = Jinja2Templates(directory="app/templates")
 TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 RUN_TIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
 PLAN_TAGS = {"free", "paid", "expired", "test"}
+TASK_TYPES = {"mini", "normal"}
 JST = ZoneInfo("Asia/Tokyo")
 
 # 決済日（yyyy:mm:dd / yyyy-mm-dd / yyyy/mm/dd）を許容
@@ -104,6 +105,7 @@ async def admin_tasks_all(request: Request):
                 t.timezone,
                 t.enabled,
                 t.plan_tag,
+                t.task_type,
                 t.expires_at,
                 t.payment_date,
                 to_char(t.payment_date, 'YYYY:MM:DD') AS payment_date_str,
@@ -150,6 +152,7 @@ async def admin_tasks_all_csv(request: Request):
                 t.enabled,
                 t.notes,
                 t.plan_tag,
+                t.task_type,
                 t.expires_at,
                 to_char(t.payment_date, 'YYYY:MM:DD') AS payment_date,
                 t.payment_amount,
@@ -182,6 +185,7 @@ async def admin_tasks_all_csv(request: Request):
         "enabled",
         "notes",
         "plan_tag",
+        "task_type",
         "expires_at",
         "payment_date",
         "payment_amount",
@@ -336,7 +340,7 @@ async def admin_user_tasks(request: Request, user_id: str):
         tasks = await conn.fetch(
             """
             SELECT task_id, user_id, name, script_key, schedule_type, schedule_value, timezone,
-                   enabled, notes, note_internal, plan_tag, expires_at,
+                   enabled, notes, note_internal, plan_tag, task_type, expires_at,
                    payment_date,
                    to_char(payment_date, 'YYYY:MM:DD') AS payment_date_str,
                    payment_amount,
@@ -375,6 +379,7 @@ async def admin_create_task(
     script_key: str = Form(...),
     schedule_value: str = Form(...),
     plan_tag: str = Form("free"),
+    task_type: str = Form("normal"),
     expires_date: Optional[str] = Form(None),  # YYYY-MM-DD
     pc_name: str = Form("default"),
     run_time: str = Form("00:00:00"),
@@ -400,6 +405,10 @@ async def admin_create_task(
     if plan_tag not in PLAN_TAGS:
         raise HTTPException(status_code=400, detail="plan_tag must be free, paid, expired, or test")
 
+    task_type = (task_type or "normal").strip().lower() or "normal"
+    if task_type not in TASK_TYPES:
+        raise HTTPException(status_code=400, detail="task_type must be mini or normal")
+
     expires_at = None
     if expires_date:
         try:
@@ -420,13 +429,13 @@ async def admin_create_task(
         await conn.execute(
             """
             INSERT INTO tasks (user_id, name, script_key, schedule_type, schedule_value, timezone,
-                               enabled, notes, note_internal, plan_tag, expires_at,
+                               enabled, notes, note_internal, plan_tag, task_type, expires_at,
                                payment_date, payment_amount,
                                pc_name, run_time, is_pc_specific, conversation_id)
             VALUES ($1, $2, $3, 'daily_time', $4, 'Asia/Tokyo',
-                    TRUE, $5, $6, $7, $8,
-                    $9, $10,
-                    $11, $12, $13, $14)
+                    TRUE, $5, $6, $7, $8, $9,
+                    $10, $11,
+                    $12, $13, $14, $15)
             """,
             user_id,
             name.strip(),
@@ -435,6 +444,7 @@ async def admin_create_task(
             (notes or "").strip() or None,
             (note_internal or "").strip() or None,
             plan_tag,
+            task_type,
             expires_at,
             pay_date,
             pay_amount,
@@ -457,6 +467,7 @@ async def admin_update_task_meta(
     is_pc_specific: str = Form("false"),
     conversation_id: Optional[str] = Form(None),
     plan_tag: str = Form("free"),
+    task_type: str = Form("normal"),
     expires_date: Optional[str] = Form(None),  # YYYY-MM-DD
     enabled: str = Form("true"),
     notes: Optional[str] = Form(None),
@@ -480,6 +491,10 @@ async def admin_update_task_meta(
     plan_tag = (plan_tag or "free").strip()
     if plan_tag not in PLAN_TAGS:
         raise HTTPException(status_code=400, detail="plan_tag must be free, paid, expired, or test")
+
+    task_type = (task_type or "normal").strip().lower() or "normal"
+    if task_type not in TASK_TYPES:
+        raise HTTPException(status_code=400, detail="task_type must be mini or normal")
 
     # enabled
     enabled_bool = (enabled or "true").strip().lower() in {"true", "1", "yes", "on"}
@@ -519,14 +534,15 @@ async def admin_update_task_meta(
                 is_pc_specific=$4,
                 conversation_id=$5,
                 plan_tag=$6,
-                expires_at=$7,
-                payment_date=$8,
-                payment_amount=$9,
-                enabled=$10,
-                notes=$11,
-                note_internal=$12,
+                task_type=$7,
+                expires_at=$8,
+                payment_date=$9,
+                payment_amount=$10,
+                enabled=$11,
+                notes=$12,
+                note_internal=$13,
                 updated_at=NOW()
-            WHERE task_id=$13
+            WHERE task_id=$14
             """,
             schedule_value or "00:00",
             pc_name,
@@ -534,6 +550,7 @@ async def admin_update_task_meta(
             is_pc_specific_bool,
             conversation_id,
             plan_tag,
+            task_type,
             expires_at,
             pay_date,
             pay_amount,

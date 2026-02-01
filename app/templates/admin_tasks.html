@@ -132,6 +132,14 @@
                 <option value="test">test（テスト用）</option>
               </select>
             </div>
+
+            <div>
+              <label>Task type</label>
+              <select name="task_type" required>
+                <option value="normal" selected>normal（一般）</option>
+                <option value="mini">mini（ミニ）</option>
+              </select>
+            </div>
             <div>
               <label>Expires (optional)</label>
               <input name="expires_date" type="date" />
@@ -184,6 +192,7 @@
           <th style="min-width:170px;">pc_specific</th>
           <th style="min-width:260px;">notify_to</th>
           <th style="min-width:90px;">tag</th>
+          <th style="min-width:90px;">type</th>
           <th style="min-width:150px;">payment_date</th>
           <th style="min-width:160px;">payment_amount</th>
           <th style="min-width:170px;">expires</th>
@@ -197,7 +206,7 @@
       <tbody>
         {% if tasks|length == 0 %}
           <tr>
-            <td colspan="17" class="muted">まだタスクがありません</td>
+            <td colspan="18" class="muted">まだタスクがありません</td>
           </tr>
         {% endif %}
 
@@ -269,7 +278,15 @@
                 <option value="expired" {% if t.plan_tag=="expired" %}selected{% endif %}>expired</option>
                 <option value="test" {% if t.plan_tag=="test" %}selected{% endif %}>test</option>
               </select>
+   
             </td>
+
+            <td>
+              <select name="task_type" form="upd-{{ t.task_id }}" style="width:86px;">
+                <option value="normal" {% if (t.task_type or 'normal')=='normal' %}selected{% endif %}>normal</option>
+                <option value="mini" {% if t.task_type=='mini' %}selected{% endif %}>mini</option>
+              </select>
+                     </td>
 
             <td>
               <input

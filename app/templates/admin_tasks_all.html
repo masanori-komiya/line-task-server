@@ -28,6 +28,7 @@
           <th>run_time</th>
           <th>enabled</th>
           <th>plan</th>
+          <th>type</th>
           <th>payment_date</th>
           <th>payment_amount</th>
           <th>expires</th>
@@ -37,7 +38,7 @@
       </thead>
       <tbody>
       {% if tasks|length == 0 %}
-        <tr><td colspan="14" class="muted">まだタスクがありません</td></tr>
+        <tr><td colspan="15" class="muted">まだタスクがありません</td></tr>
       {% endif %}
       {% for t in tasks %}
         <tr>

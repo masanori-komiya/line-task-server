@@ -86,6 +86,7 @@ async def init_db(pool: asyncpg.Pool) -> None:
         notes          TEXT,
         note_internal  TEXT,
         plan_tag       TEXT NOT NULL DEFAULT 'free',
+        task_type      TEXT NOT NULL DEFAULT 'normal',
         expires_at     TIMESTAMPTZ NULL,
         pc_name        TEXT NOT NULL DEFAULT 'default',
         run_time       INTERVAL NOT NULL DEFAULT INTERVAL '00:00:00',
@@ -97,7 +98,11 @@ async def init_db(pool: asyncpg.Pool) -> None:
     );
 
     
-    -- ✅ Stripe決済リンク（任意。未設定なら環境変数を利用）
+        -- ✅ タスク種別（mini / normal）
+    ALTER TABLE tasks
+        ADD COLUMN IF NOT EXISTS task_type TEXT NOT NULL DEFAULT 'normal';
+
+-- ✅ Stripe決済リンク（任意。未設定なら環境変数を利用）
     ALTER TABLE tasks
         ADD COLUMN IF NOT EXISTS stripe_payment_link TEXT;
 

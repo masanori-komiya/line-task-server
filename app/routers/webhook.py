@@ -200,7 +200,7 @@ async def enqueue_rerun(pool: asyncpg.Pool, user_id: str, task_name: str, reques
 
 async def fetch_tasks_for_user(pool: asyncpg.Pool, user_id: str) -> list[dict]:
     sql = """
-    SELECT task_id, name, schedule_value, plan_tag, expires_at, enabled
+    SELECT task_id, name, schedule_value, plan_tag, task_type, expires_at, enabled
     FROM tasks
     WHERE user_id=$1
     ORDER BY created_at DESC
@@ -214,7 +214,7 @@ async def fetch_tasks_for_user(pool: asyncpg.Pool, user_id: str) -> list[dict]:
 async def fetch_task_detail_for_user(pool: asyncpg.Pool, user_id: str, task_id: str) -> Optional[dict]:
     """task_id 指定で詳細を取得（user_id も一致するもののみ）"""
     sql = """
-    SELECT task_id, name, schedule_value, plan_tag, expires_at, payment_date, payment_amount, notes, stripe_payment_link
+    SELECT task_id, name, schedule_value, plan_tag, task_type, expires_at, payment_date, payment_amount, notes, stripe_payment_link
     FROM tasks
     WHERE user_id=$1 AND task_id=$2::uuid
     LIMIT 1
