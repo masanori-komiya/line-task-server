@@ -5,13 +5,13 @@ from datetime import datetime, timedelta, date
 from typing import Optional
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
-from app.auth import require_admin
+from app.auth import SESSION_COOKIE, SESSION_MAX_AGE, check_credentials, create_session_token
 
-router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
+router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="app/templates")
 
 TIME_RE = re.compile(r"^\d{2}:\d{2}$")
@@ -66,6 +66,42 @@ def parse_payment_date(value: Optional[str]) -> Optional[date]:
         return d
     except Exception:
         raise HTTPException(status_code=400, detail="payment_date must be a valid date")
+
+
+@router.get("/login", response_class=HTMLResponse)
+async def admin_login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request, "title": "Login"})
+
+
+@router.post("/login")
+async def admin_login(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+):
+    if not check_credentials(username, password):
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "title": "Login", "error": "ユーザー名またはパスワードが違います"},
+            status_code=401,
+        )
+    token = create_session_token(username)
+    response = RedirectResponse(url="/admin/users", status_code=303)
+    response.set_cookie(
+        SESSION_COOKIE,
+        token,
+        max_age=SESSION_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
+
+
+@router.post("/logout")
+async def admin_logout():
+    response = RedirectResponse(url="/admin/login", status_code=303)
+    response.delete_cookie(SESSION_COOKIE)
+    return response
 
 
 @router.get("/users", response_class=HTMLResponse)

@@ -38,7 +38,10 @@
     <div class="top">
       <div class="brand">LINE Task Server</div>
       <div>
-        {% block top_right %}{% endblock %}
+          {% block top_right %}{% endblock %}
+        <form method="post" action="/admin/logout" style="display:inline">
+          <button type="submit" class="btn" style="cursor:pointer; font-size:13px;">ログアウト</button>
+        </form>
       </div>
     </div>
     {% block content %}{% endblock %}

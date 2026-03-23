@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Login — LINE Task Server</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, system-ui, sans-serif;
+      background: #0b0f17;
+      color: #e6e8ee;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      width: 100%;
+      max-width: 380px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 20px;
+      padding: 36px 32px;
+      margin: 24px;
+    }
+    .brand {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: .3px;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: rgba(255,255,255,.5);
+      margin-bottom: 28px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    label {
+      font-size: 12px;
+      color: rgba(255,255,255,.6);
+      letter-spacing: .4px;
+    }
+    input {
+      width: 100%;
+      padding: 11px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.3);
+      color: #e6e8ee;
+      font-size: 14px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input:focus {
+      border-color: rgba(255,255,255,.35);
+    }
+    .error {
+      background: rgba(255,80,80,.12);
+      border: 1px solid rgba(255,80,80,.3);
+      color: #ff9090;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .btn-primary {
+      width: 100%;
+      padding: 12px;
+      border-radius: 12px;
+      border: none;
+      background: rgba(255,255,255,.14);
+      color: #e6e8ee;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .15s;
+      margin-top: 6px;
+    }
+    .btn-primary:hover {
+      background: rgba(255,255,255,.20);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">LINE Task Server</div>
+    <div class="subtitle">管理画面</div>
+
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/admin/login">
+      <div class="field">
+        <label for="username">ユーザー名</label>
+        <input type="text" id="username" name="username" autocomplete="username" autofocus required/>
+      </div>
+      <div class="field">
+        <label for="password">パスワード</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required/>
+      </div>
+      <button type="submit" class="btn-primary">ログイン</button>
+    </form>
+  </div>
+</body>
+</html>

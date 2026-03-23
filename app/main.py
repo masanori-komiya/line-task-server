@@ -2,11 +2,13 @@ import uuid
 from fastapi import FastAPI
 
 from app.db import create_pool, init_db
+from app.auth import AdminAuthMiddleware
 from app.routers.public import router as public_router
 from app.routers.admin import router as admin_router
 from app.routers.webhook import router as webhook_router, legacy_router
 from app.routers.stripe_webhook import router as stripe_webhook_router
 app = FastAPI()
+app.add_middleware(AdminAuthMiddleware)
 
 # ルーター
 app.include_router(public_router)
