@@ -237,9 +237,11 @@ def _format_yyyy_mm_dd(value) -> str:
         return "-"
 
 
-def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _build_tasks_bubble(tasks_page: List[Dict[str, Any]], page: int, total_pages: int, total_tasks: int) -> Dict[str, Any]:
+    """1ページ分のタスク一覧バブルを生成する。"""
+    page_label = f"{total_tasks} 件" if total_pages == 1 else f"{total_tasks} 件（{page}/{total_pages} ページ）"
     contents: List[Dict[str, Any]] = [
-        {"type": "text", "text": f"{len(tasks)} 件", "size": "sm", "color": "#666666"},
+        {"type": "text", "text": page_label, "size": "sm", "color": "#666666"},
         {"type": "separator", "margin": "md"},
         {
             "type": "box",
@@ -256,90 +258,126 @@ def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, A
         {"type": "separator", "margin": "sm"},
     ]
 
-    if not tasks:
-        contents.append({"type": "text", "text": "タスクがありません。", "size": "sm", "color": "#666666", "margin": "md", "wrap": True})
-    else:
-        for t in tasks[:20]:
-            task_id = str(t.get("task_id") or "").strip()
-            name_raw = t.get("name") or "-"
-            name = name_raw
-            time = t.get("schedule_value") or "-"
-            plan = (t.get("plan_tag") or "free").lower()
-            enabled = bool(t.get("enabled", True))
+    for t in tasks_page:
+        task_id = str(t.get("task_id") or "").strip()
+        name_raw = t.get("name") or "-"
+        name = name_raw
+        time = t.get("schedule_value") or "-"
+        plan = (t.get("plan_tag") or "free").lower()
+        enabled = bool(t.get("enabled", True))
 
-            expires_text = _format_yy_mm_dd(t.get("expires_at"))
+        expires_text = _format_yy_mm_dd(t.get("expires_at"))
 
-            is_gray = not enabled
-            row_color = "#AAAAAA" if is_gray else "#222222"
-            plan_color = (
-                "#AAAAAA" if is_gray
-                else "#B42318" if plan == "paid"
-                else "#666666" if plan == "expired"
-                else "#1A7F37"
-            )
-            status_suffix = "（disabled）" if is_gray else ""
+        is_gray = not enabled
+        row_color = "#AAAAAA" if is_gray else "#222222"
+        plan_color = (
+            "#AAAAAA" if is_gray
+            else "#B42318" if plan == "paid"
+            else "#666666" if plan == "expired"
+            else "#1A7F37"
+        )
+        status_suffix = "（disabled）" if is_gray else ""
 
-            # タップで詳細表示（Postback）
-            name_action: Dict[str, Any] = {}
-            if task_id:
-                name_action = {
-                    "type": "postback",
-                    "data": f"action=task_detail&task_id={task_id}",
-                    "displayText": f"{name} 詳細",
-                }
+        name_action: Dict[str, Any] = {}
+        if task_id:
+            name_action = {
+                "type": "postback",
+                "data": f"action=task_detail&task_id={task_id}",
+                "displayText": f"{name} 詳細",
+            }
 
-            contents.append(
-                {
-                    "type": "box",
-                    "layout": "horizontal",
-                    "spacing": "sm",
-                    "margin": "sm",
-                    "contents": [
-                        {
-                            "type": "text",
-                            "text": f"{name}{status_suffix}",
-                            "size": "xs",
-                            "wrap": False,
-                            "maxLines": 1,  # ← はみ出たら …
-                            "flex": 6,
-                            "color": row_color,
-                            **({"action": name_action} if name_action else {}),
-                        },
-                        {"type": "text", "text": time,         "size": "xs", "flex": 3, "align": "center", "color": row_color, "wrap": False, "maxLines": 1},
-                        {"type": "text", "text": expires_text, "size": "xs", "flex": 3, "align": "center", "color": row_color, "wrap": False, "maxLines": 1},
-                        {"type": "text", "text": plan,         "size": "xs", "flex": 2, "align": "center", "color": plan_color, "wrap": False, "maxLines": 1},
-                    ],
-                }
-            )
-
-        # ✅ タスクがあるときだけ注記を表示（テーブルの下）
         contents.append(
             {
-                "type": "text",
-                "text": "※ タスク名をタップで詳細表示できます。",
-                "size": "xxs",
-                "color": "#999999",
-                "wrap": True,
-                "margin": "md",
+                "type": "box",
+                "layout": "horizontal",
+                "spacing": "sm",
+                "margin": "sm",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": f"{name}{status_suffix}",
+                        "size": "xs",
+                        "wrap": False,
+                        "maxLines": 1,
+                        "flex": 6,
+                        "color": row_color,
+                        **({"action": name_action} if name_action else {}),
+                    },
+                    {"type": "text", "text": time,         "size": "xs", "flex": 3, "align": "center", "color": row_color, "wrap": False, "maxLines": 1},
+                    {"type": "text", "text": expires_text, "size": "xs", "flex": 3, "align": "center", "color": row_color, "wrap": False, "maxLines": 1},
+                    {"type": "text", "text": plan,         "size": "xs", "flex": 2, "align": "center", "color": plan_color, "wrap": False, "maxLines": 1},
+                ],
             }
         )
 
-        if len(tasks) > 20:
-            contents.extend(
-                [
+    contents.append(
+        {
+            "type": "text",
+            "text": "※ タスク名をタップで詳細表示できます。",
+            "size": "xxs",
+            "color": "#999999",
+            "wrap": True,
+            "margin": "md",
+        }
+    )
+
+    if total_pages > 1:
+        contents.extend(
+            [
+                {"type": "separator", "margin": "md"},
+                {"type": "text", "text": "← 左右にスワイプで切り替え →", "size": "xxs", "color": "#999999", "align": "center", "margin": "sm"},
+            ]
+        )
+
+    return {
+        "type": "bubble",
+        "styles": {"body": {"backgroundColor": "#FFFFFF"}},
+        "body": {"type": "box", "layout": "vertical", "spacing": "sm", "contents": contents},
+    }
+
+
+def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
+    page_size = 20
+    total_tasks = len(tasks)
+
+    if not tasks:
+        empty_bubble = {
+            "type": "bubble",
+            "styles": {"body": {"backgroundColor": "#FFFFFF"}},
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": [
+                    {"type": "text", "text": "0 件", "size": "sm", "color": "#666666"},
                     {"type": "separator", "margin": "md"},
-                    {"type": "text", "text": f"※ 表示は先頭20件まで（全 {len(tasks)} 件）", "size": "xs", "color": "#666666", "wrap": True, "margin": "sm"},
-                ]
-            )
+                    {"type": "text", "text": "タスクがありません。", "size": "sm", "color": "#666666", "margin": "md", "wrap": True},
+                ],
+            },
+        }
+        return {
+            "type": "flex",
+            "altText": "実行中のタスク（0件）",
+            "contents": empty_bubble,
+        }
+
+    pages = [tasks[i:i + page_size] for i in range(0, total_tasks, page_size)]
+    total_pages = len(pages)
+
+    bubbles = [
+        _build_tasks_bubble(page_tasks, page_num + 1, total_pages, total_tasks)
+        for page_num, page_tasks in enumerate(pages)
+    ]
+
+    if total_pages == 1:
+        contents = bubbles[0]
+    else:
+        contents = {"type": "carousel", "contents": bubbles}
 
     return {
         "type": "flex",
-        "altText": f"実行中のタスク（{len(tasks)}件）",
-        "contents": {
-            "type": "bubble",
-            "styles": {"body": {"backgroundColor": "#FFFFFF"}},
-            "body": {"type": "box", "layout": "vertical", "spacing": "sm", "contents": contents},
-        },
+        "altText": f"実行中のタスク（{total_tasks}件）",
+        "contents": contents,
     }
 
 
