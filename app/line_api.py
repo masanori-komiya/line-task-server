@@ -337,7 +337,7 @@ def _build_tasks_bubble(tasks_page: List[Dict[str, Any]], page: int, total_pages
 
 
 def build_tasks_flex(user_name: str, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
-    page_size = 20
+    page_size = 15
     total_tasks = len(tasks)
 
     if not tasks:
