@@ -9,7 +9,11 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
-from app.auth import SESSION_COOKIE, SESSION_MAX_AGE, check_credentials, create_session_token
+from app.auth import (
+    SESSION_COOKIE, SESSION_MAX_AGE, SECURE_COOKIE,
+    check_credentials, create_session_token,
+    is_rate_limited, record_failed_attempt, reset_attempts,
+)
 
 router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="app/templates")
@@ -79,12 +83,21 @@ async def admin_login(
     username: str = Form(...),
     password: str = Form(...),
 ):
+    ip = request.client.host if request.client else "unknown"
+    if is_rate_limited(ip):
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "title": "Login", "error": "ログイン試行回数が多すぎます。15分後に再試行してください。"},
+            status_code=429,
+        )
     if not check_credentials(username, password):
+        record_failed_attempt(ip)
         return templates.TemplateResponse(
             "login.html",
             {"request": request, "title": "Login", "error": "ユーザー名またはパスワードが違います"},
             status_code=401,
         )
+    reset_attempts(ip)
     token = create_session_token(username)
     response = RedirectResponse(url="/admin/users", status_code=303)
     response.set_cookie(
@@ -93,6 +106,7 @@ async def admin_login(
         max_age=SESSION_MAX_AGE,
         httponly=True,
         samesite="lax",
+        secure=SECURE_COOKIE,
     )
     return response
 

@@ -1,6 +1,7 @@
 import hmac
 import hashlib
 import base64
+import collections
 import os
 import time
 
@@ -11,10 +12,34 @@ from starlette.responses import RedirectResponse
 SESSION_COOKIE = "admin_session"
 SESSION_MAX_AGE = 24 * 3600  # 24 hours
 
+_LOCKOUT_WINDOW = 15 * 60  # 15 minutes
+_MAX_ATTEMPTS = 10
+_failed_attempts: dict[str, list[float]] = collections.defaultdict(list)
+
+SECURE_COOKIE = os.getenv("SECURE_COOKIE", "true").lower() != "false"
+
+_AUTO_SECRET_KEY: bytes = os.urandom(32)
+
 
 def _secret_key() -> bytes:
-    key = os.getenv("ADMIN_SECRET_KEY") or os.getenv("ADMIN_PASSWORD", "changeme")
+    key = os.getenv("ADMIN_SECRET_KEY")
+    if not key:
+        return _AUTO_SECRET_KEY
     return key.encode()
+
+
+def is_rate_limited(ip: str) -> bool:
+    now = time.time()
+    _failed_attempts[ip] = [t for t in _failed_attempts[ip] if now - t < _LOCKOUT_WINDOW]
+    return len(_failed_attempts[ip]) >= _MAX_ATTEMPTS
+
+
+def record_failed_attempt(ip: str) -> None:
+    _failed_attempts[ip].append(time.time())
+
+
+def reset_attempts(ip: str) -> None:
+    _failed_attempts.pop(ip, None)
 
 
 def create_session_token(username: str) -> str:
