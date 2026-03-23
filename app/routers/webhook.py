@@ -204,7 +204,6 @@ async def fetch_tasks_for_user(pool: asyncpg.Pool, user_id: str) -> list[dict]:
     FROM tasks
     WHERE user_id=$1
     ORDER BY created_at DESC
-    LIMIT 50
     """
     async with pool.acquire() as conn:
         rows = await conn.fetch(sql, user_id)
