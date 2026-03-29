@@ -13,13 +13,11 @@
 
 {# このページ専用の微調整CSS（base.cssを触らずに済ませる） #}
 <style>
-  /* 横スクロールを確実に出す */
   .tablewrap {
     overflow-x: auto;
     overflow-y: hidden;
   }
 
-  /* テーブルは折り返し禁止。必要なら横スクロールで見る */
   table.tasks-table {
     min-width: 1600px;
     width: max-content;
@@ -32,22 +30,24 @@
     vertical-align: middle;
   }
 
-  /* notesだけは横に伸びすぎるので省略表示（必要なら消してOK） */
   .notes-cell {
     max-width: 320px;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  /* pc_specific列：select + Save を横並び固定 */
   .pc-specific-cell {
     display: flex;
     align-items: center;
     gap: 8px;
   }
 
-  /* createdなどの列の見やすさ */
   .mono { font-variant-ligatures: none; }
+
+  /* テーブル内の小さいinput/selectはデフォルトのfull-widthを解除 */
+  table input, table select, table textarea {
+    width: auto;
+  }
 </style>
 
 <div class="grid">
@@ -122,7 +122,7 @@
             </div>
           </div>
 
-          <div class="row2">
+          <div class="row3">
             <div>
               <label>Plan tag</label>
               <select name="plan_tag" required>
