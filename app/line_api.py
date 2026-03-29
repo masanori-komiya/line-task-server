@@ -16,11 +16,18 @@ LINE_UNLINK_RICH_MENU_API = "https://api.line.me/v2/bot/user/{}/richmenu"
 # ✅ 表示順を保証（1Mは完全削除）
 PLAN_ORDER = ["3m", "6m", "12m"]
 
-# ✅ 表示ラベル（必要なら金額だけ変えればOK）
+# ✅ 表示ラベル（task_type 別）
 PLAN_LABELS = {
-    "3m": "3か月（¥12,000）",
-    "6m": "6か月（¥21,000）",
-    "12m": "12か月（¥36,000）",
+    "normal": {
+        "3m": "3か月（¥12,000）",
+        "6m": "6か月（¥21,000）",
+        "12m": "12か月（¥36,000）",
+    },
+    "mini": {
+        "3m": "3か月（¥2,000）",
+        "6m": "6か月（¥3,500）",
+        "12m": "12か月（¥6,000）",
+    },
 }
 
 
@@ -446,7 +453,8 @@ def build_task_detail_flex(user_name: str, task: Dict[str, Any]) -> Dict[str, An
         if not url:
             continue
 
-        label = PLAN_LABELS.get(plan, plan)
+        plan_labels = PLAN_LABELS.get(task_type, PLAN_LABELS["normal"])
+        label = plan_labels.get(plan, plan)
         uri = _with_client_reference_id(url, f"{task_id}_{plan}") if task_id else url
 
         buttons.append(
